@@ -534,6 +534,7 @@ export default function Dashboard() {
 
                 <select className="crm-input" style={{ width: 'auto', minWidth: '140px' }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
                   <option value="">All Status</option>
+                  <option value="#New_Lead">New Lead</option>
                   <option value="#First_Call">First Call</option>
                   <option value="#Followup_1">Follow-up 1</option>
                   <option value="#Followup_2">Follow-up 2</option>
@@ -610,6 +611,7 @@ export default function Dashboard() {
                           { label: 'FM Type', width: '85px' },
                           { label: 'Quality', width: '85px' },
                           { label: 'Follow-up', width: '105px' },
+                          { label: 'Date', width: '115px' },
                           { label: 'Remark', width: 'auto' },
                           { label: 'Actions', width: '95px' }
                         ].map((col, idx) => (
@@ -728,6 +730,13 @@ export default function Dashboard() {
                           <td style={{ padding: '8px 10px', width: '105px' }}>
                             <FollowUpBadge status={lead.follow_up_status} />
                           </td>
+                          <td style={{ padding: '8px 10px', width: '115px', whiteSpace: 'nowrap' }}>
+                            {lead.created_at && (
+                              <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
+                                {formatLastActivity(lead.created_at)}
+                              </div>
+                            )}
+                          </td>
                           <td style={{ padding: '8px 10px', overflow: 'hidden' }}>
                             <div style={{
                               fontSize: '12px',
@@ -738,11 +747,6 @@ export default function Dashboard() {
                             }} title={lead.last_remark || ''}>
                               {lead.last_remark || '—'}
                             </div>
-                            {lead.last_activity && (
-                              <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap' }}>
-                                {formatLastActivity(lead.last_activity)}
-                              </div>
-                            )}
                           </td>
                           <td style={{ padding: '8px 10px', width: '95px', whiteSpace: 'nowrap' }}>
                             <div style={{ display: 'flex', gap: '4px' }}>
