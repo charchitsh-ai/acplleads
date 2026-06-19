@@ -54,8 +54,8 @@ export default function Dashboard() {
       let query = supabase
         .from('leads')
         .select('*', { count: 'exact' })
-        .order('s_no', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false })
+        .order('s_no', { ascending: false, nullsFirst: false })
 
       if (search.trim()) {
         const s = search.trim()

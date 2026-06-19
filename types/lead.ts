@@ -38,6 +38,7 @@ export interface Lead {
   last_remark?: string
   last_activity?: string
   lead_date?: string
+  next_followup_date?: string
 }
 
 export type LeadInsert = Omit<Lead, 'id' | 'created_at' | 'updated_at'>
@@ -61,6 +62,7 @@ export interface LeadActivity {
   activity_type: 'remark' | 'created' | 'updated'
   remark: string
   created_by?: string
+  next_followup_date?: string
 }
 
 export type UserActivityType =

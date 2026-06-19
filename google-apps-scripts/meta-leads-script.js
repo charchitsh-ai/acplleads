@@ -15,9 +15,7 @@
  */
 
 // ─── CONFIG ─────────────────────────────────────────────────────────────────
-var CRM_ENDPOINT = "http://localhost:3000/api/leads/capture";
-// NOTE: Replace localhost with your deployed URL when going live, e.g.:
-// var CRM_ENDPOINT = "https://your-domain.com/api/leads/capture";
+var CRM_ENDPOINT = "https://aykacare.co.in/api/leads/capture";
 
 var CAPTURE_SECRET = "ayka-crm-secret-2024"; // must match LEADS_CAPTURE_SECRET in .env.local
 var SHEET_NAME     = "Sheet1";               // change to your actual sheet tab name

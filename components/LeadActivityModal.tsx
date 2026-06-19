@@ -22,6 +22,7 @@ function formatActivityTime(value: string) {
 export default function LeadActivityModal({ lead, onClose, onChanged }: LeadActivityModalProps) {
   const [activities, setActivities] = useState<LeadActivity[]>([])
   const [remark, setRemark] = useState('')
+  const [nextFollowup, setNextFollowup] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -59,17 +60,24 @@ export default function LeadActivityModal({ lead, onClose, onChanged }: LeadActi
     setError('')
     try {
       const now = new Date().toISOString()
+      const followupValue = nextFollowup ? new Date(nextFollowup).toISOString() : null
+
       const { error: activityError } = await supabase.from('lead_activities').insert({
         lead_id: lead.id,
         activity_type: 'remark',
         remark: text,
         created_by: lead.assigned_to || null,
+        next_followup_date: followupValue
       })
       if (activityError) throw activityError
 
       const { error: leadError } = await supabase
         .from('leads')
-        .update({ last_remark: text, last_activity: now })
+        .update({ 
+          last_remark: text, 
+          last_activity: now,
+          next_followup_date: followupValue
+        })
         .eq('id', lead.id)
       if (leadError) throw leadError
 
@@ -79,10 +87,11 @@ export default function LeadActivityModal({ lead, onClose, onChanged }: LeadActi
         lead_name: lead.name,
         target_user_id: lead.assigned_user_id || null,
         target_user_name: lead.assigned_to || null,
-        detail: `Added remark on ${lead.name}: ${text}`,
+        detail: `Added remark on ${lead.name}: ${text}${followupValue ? ` (Next follow-up: ${new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(followupValue))})` : ''}`,
       })
 
       setRemark('')
+      setNextFollowup('')
       await fetchActivities()
       onChanged()
     } catch (err: unknown) {
@@ -130,18 +139,35 @@ export default function LeadActivityModal({ lead, onClose, onChanged }: LeadActi
         </div>
 
         <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--border)' }}>
-          <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
-            Add Remark
-          </label>
-          <textarea
-            className="crm-input"
-            value={remark}
-            onChange={e => setRemark(e.target.value)}
-            placeholder="Write follow-up note, call update, meeting status..."
-            rows={3}
-            style={{ resize: 'vertical' }}
-          />
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                Add Remark *
+              </label>
+              <textarea
+                className="crm-input"
+                value={remark}
+                onChange={e => setRemark(e.target.value)}
+                placeholder="Write follow-up note, call update, meeting status..."
+                rows={3}
+                style={{ resize: 'vertical' }}
+              />
+            </div>
+            
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                Schedule Next Follow-up (Optional)
+              </label>
+              <input
+                type="datetime-local"
+                className="crm-input"
+                value={nextFollowup}
+                onChange={e => setNextFollowup(e.target.value)}
+                style={{ width: '100%', maxWidth: '240px' }}
+              />
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '14px' }}>
             <button className="btn-primary" onClick={handleAddRemark} disabled={saving || !remark.trim()}>
               <MessageSquare size={14} /> {saving ? 'Saving...' : 'Save Remark'}
             </button>
@@ -202,8 +228,28 @@ export default function LeadActivityModal({ lead, onClose, onChanged }: LeadActi
                   <div style={{ color: 'var(--text-primary)', fontSize: '14px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
                     {activity.remark}
                   </div>
+                  
+                  {activity.next_followup_date && (
+                    <div style={{
+                      marginTop: '8px',
+                      padding: '6px 10px',
+                      background: 'rgba(163,192,38,0.08)',
+                      border: '1px dashed rgba(163,192,38,0.3)',
+                      borderRadius: '6px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      fontSize: '12.5px',
+                      color: 'var(--accent)'
+                    }}>
+                      <span>📅</span>
+                      <span>Next Follow-up scheduled for:</span>
+                      <strong>{formatActivityTime(activity.next_followup_date)}</strong>
+                    </div>
+                  )}
+
                   {activity.created_by && (
-                    <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '8px' }}>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '11px', marginTop: activity.next_followup_date ? '8px' : '6px' }}>
                       By {activity.created_by}
                     </div>
                   )}

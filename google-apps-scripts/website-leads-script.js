@@ -10,7 +10,7 @@ const TEAM_EMAILS = [
 
 // ─── AYKA CRM CONFIG ─────────────────────────────────────────────────────────
 // When going live, replace this ngrok URL with your real domain:
-const CRM_ENDPOINT     = "https://droopily-renunciable-lorinda.ngrok-free.dev/api/leads/capture";
+const CRM_ENDPOINT     = "https://aykacare.co.in/api/leads/capture";
 const CAPTURE_SECRET   = "ayka-crm-secret-2024";
 // ─────────────────────────────────────────────────────────────────────────────
 
