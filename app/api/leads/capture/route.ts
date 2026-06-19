@@ -1,11 +1,15 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 
-// Use service role key so we can insert without auth
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+// Helper function to create supabase client at runtime
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) {
+    throw new Error('Supabase client is not configured')
+  }
+  return createClient(url, key)
+}
 
 const FM_MAP: Record<string, string> = {
   cf: 'CF', city: 'CF',
@@ -88,6 +92,8 @@ export async function POST(req: NextRequest) {
     if (!rows.length) {
       return NextResponse.json({ error: 'All rows missing required field: name' }, { status: 422 })
     }
+
+    const supabase = getSupabaseClient()
 
     // ── Insert or update in Supabase (De-duplication) ────────────────
     const insertedIds: { id: string; name: string }[] = []
