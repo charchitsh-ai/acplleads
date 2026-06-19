@@ -399,7 +399,7 @@ export default function Dashboard() {
 
       {/* Main Content Area */}
       <div style={{ marginLeft: '260px', flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        <div style={{ padding: '32px', maxWidth: '1200px', width: '100%', margin: '0 auto' }}>
+        <div style={{ padding: '24px', width: '100%', margin: '0' }}>
           {activeTab === 'dashboard' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
               {/* Header row */}
@@ -597,13 +597,24 @@ export default function Dashboard() {
 
               {/* Table */}
               <div className="crm-card" style={{ padding: 0, overflow: 'hidden' }}>
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <div style={{ overflowX: 'auto', width: '100%' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                     <thead>
                       <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                        {['', 'Name', 'Contact', 'Location', 'Assigned', 'FM Type', 'Quality', 'Follow-up', 'Remark', 'Actions'].map((h, idx) => (
-                          <th key={h || idx} style={{
-                            padding: '11px 14px',
+                        {[
+                          { label: '', width: '45px' },
+                          { label: 'Name', width: '180px' },
+                          { label: 'Contact', width: '115px' },
+                          { label: 'Location', width: '130px' },
+                          { label: 'Assigned', width: '145px' },
+                          { label: 'FM Type', width: '85px' },
+                          { label: 'Quality', width: '85px' },
+                          { label: 'Follow-up', width: '105px' },
+                          { label: 'Remark', width: 'auto' },
+                          { label: 'Actions', width: '95px' }
+                        ].map((col, idx) => (
+                          <th key={col.label || idx} style={{
+                            padding: '10px 12px',
                             textAlign: 'left',
                             fontSize: '11px',
                             fontWeight: '600',
@@ -611,7 +622,7 @@ export default function Dashboard() {
                             letterSpacing: '0.5px',
                             textTransform: 'uppercase',
                             whiteSpace: 'nowrap',
-                            width: idx === 0 ? '50px' : undefined
+                            width: col.width
                           }}>
                             {idx === 0 ? (
                               <input
@@ -626,7 +637,7 @@ export default function Dashboard() {
                                   }
                                 }}
                               />
-                            ) : h}
+                            ) : col.label}
                           </th>
                         ))}
                       </tr>
@@ -653,8 +664,8 @@ export default function Dashboard() {
                           onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-2)')}
                           onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)')}
                         >
-                          <td style={{ padding: '10px 14px', width: '50px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <td style={{ padding: '8px 10px', width: '45px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                               <input
                                 type="checkbox"
                                 style={{ accentColor: 'var(--accent)', cursor: 'pointer' }}
@@ -670,32 +681,32 @@ export default function Dashboard() {
                               <LeadStatusDot lead={lead} />
                             </div>
                           </td>
-                          <td style={{ padding: '10px 14px', minWidth: '160px' }}>
-                            <div style={{ fontWeight: '500', fontSize: '14px', color: 'var(--text-primary)' }}>{lead.name}</div>
-                            {lead.email && <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>{lead.email}</div>}
+                          <td style={{ padding: '8px 10px', width: '180px', overflow: 'hidden' }}>
+                            <div style={{ fontWeight: '500', fontSize: '13.5px', color: 'var(--text-primary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }} title={lead.name}>{lead.name}</div>
+                            {lead.email && <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '1px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }} title={lead.email}>{lead.email}</div>}
                           </td>
-                          <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
-                            <span style={{ fontSize: '13px', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
+                          <td style={{ padding: '8px 10px', width: '115px', whiteSpace: 'nowrap' }}>
+                            <span style={{ fontSize: '12.5px', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
                               {lead.contact || '—'}
                             </span>
                           </td>
-                          <td style={{ padding: '10px 14px', fontSize: '13px', color: 'var(--text-secondary)', maxWidth: '160px' }}>
+                          <td style={{ padding: '8px 10px', width: '130px', fontSize: '12.5px', color: 'var(--text-secondary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }} title={[lead.city, lead.state].filter(Boolean).join(', ') || ''}>
                             {[lead.city, lead.state].filter(Boolean).join(', ') || '—'}
                           </td>
-                          <td style={{ padding: '10px 14px' }}>
+                          <td style={{ padding: '8px 10px', width: '145px' }}>
                             <select
                               className="crm-input"
                               style={{
-                                padding: '4px 8px',
-                                fontSize: '12.5px',
+                                padding: '3px 6px',
+                                fontSize: '12px',
                                 border: '1px solid var(--border)',
-                                borderRadius: '6px',
+                                borderRadius: '5px',
                                 background: 'var(--surface)',
                                 color: 'var(--text-primary)',
                                 cursor: 'pointer',
                                 outline: 'none',
                                 width: '100%',
-                                minWidth: '130px'
+                                minWidth: '110px'
                               }}
                               value={lead.assigned_user_id || ''}
                               onChange={e => handleAssignInline(lead.id, lead.name, e.target.value)}
@@ -708,16 +719,16 @@ export default function Dashboard() {
                               ))}
                             </select>
                           </td>
-                          <td style={{ padding: '10px 14px' }}>
+                          <td style={{ padding: '8px 10px', width: '85px' }}>
                             <FmBadge fmType={lead.fm_type} />
                           </td>
-                          <td style={{ padding: '10px 14px' }}>
+                          <td style={{ padding: '8px 10px', width: '85px' }}>
                             <QualityBadge quality={lead.lead_quality} />
                           </td>
-                          <td style={{ padding: '10px 14px' }}>
+                          <td style={{ padding: '8px 10px', width: '105px' }}>
                             <FollowUpBadge status={lead.follow_up_status} />
                           </td>
-                          <td style={{ padding: '10px 14px', maxWidth: '220px' }}>
+                          <td style={{ padding: '8px 10px', overflow: 'hidden' }}>
                             <div style={{
                               fontSize: '12px',
                               color: 'var(--text-secondary)',
@@ -728,49 +739,49 @@ export default function Dashboard() {
                               {lead.last_remark || '—'}
                             </div>
                             {lead.last_activity && (
-                              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', whiteSpace: 'nowrap' }}>
+                              <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap' }}>
                                 {formatLastActivity(lead.last_activity)}
                               </div>
                             )}
                           </td>
-                          <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }}>
-                            <div style={{ display: 'flex', gap: '6px' }}>
+                          <td style={{ padding: '8px 10px', width: '95px', whiteSpace: 'nowrap' }}>
+                            <div style={{ display: 'flex', gap: '4px' }}>
                               <button
                                 title="Activity history"
                                 onClick={() => setActivityLead(lead)}
                                 style={{
                                   background: 'none', border: 'none', cursor: 'pointer',
-                                  color: 'var(--text-muted)', padding: '4px',
-                                  borderRadius: '6px', transition: 'all 0.1s'
+                                  color: 'var(--text-muted)', padding: '3px',
+                                  borderRadius: '5px', transition: 'all 0.1s'
                                 }}
                                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--success)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(46,213,115,0.1)' }}
                                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'none' }}
                               >
-                                <Clock3 size={14} />
+                                <Clock3 size={13} />
                               </button>
                               <button
                                 onClick={() => { setEditLead(lead); setShowForm(true) }}
                                 style={{
                                   background: 'none', border: 'none', cursor: 'pointer',
-                                  color: 'var(--text-muted)', padding: '4px',
-                                  borderRadius: '6px', transition: 'all 0.1s'
+                                  color: 'var(--text-muted)', padding: '3px',
+                                  borderRadius: '5px', transition: 'all 0.1s'
                                 }}
                                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--accent)'; (e.currentTarget as HTMLButtonElement).style.background = 'var(--accent-muted)' }}
                                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'none' }}
                               >
-                                <Edit2 size={14} />
+                                <Edit2 size={13} />
                               </button>
                               <button
                                 onClick={() => setDeleteId(lead.id)}
                                 style={{
                                   background: 'none', border: 'none', cursor: 'pointer',
-                                  color: 'var(--text-muted)', padding: '4px',
-                                  borderRadius: '6px', transition: 'all 0.1s'
+                                  color: 'var(--text-muted)', padding: '3px',
+                                  borderRadius: '5px', transition: 'all 0.1s'
                                 }}
                                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--danger)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,71,87,0.1)' }}
                                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'none' }}
                               >
-                                <Trash2 size={14} />
+                                <Trash2 size={13} />
                               </button>
                             </div>
                           </td>
