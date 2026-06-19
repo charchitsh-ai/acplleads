@@ -295,11 +295,11 @@ export default function Dashboard() {
         {/* Navigation Tabs */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', flex: 1 }}>
           {[
-            { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null },
-            { id: 'team', label: 'Team', icon: Users, badge: profiles.length > 0 ? profiles.length : null },
-            { id: 'leads', label: 'Leads', icon: FolderKanban, badge: stats.total > 0 ? stats.total : null },
-            { id: 'sync', label: 'Sync Sources', icon: Link2, badge: null },
-          ].map(tab => {
+            { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null, visible: true },
+            { id: 'team', label: 'Team', icon: Users, badge: profiles.length > 0 ? profiles.length : null, visible: currentProfile?.role === 'admin' },
+            { id: 'leads', label: 'Leads', icon: FolderKanban, badge: stats.total > 0 ? stats.total : null, visible: true },
+            { id: 'sync', label: 'Sync Sources', icon: Link2, badge: null, visible: currentProfile?.role === 'admin' },
+          ].filter(tab => tab.visible).map(tab => {
             const Icon = tab.icon
             const isActive = activeTab === tab.id
             return (
