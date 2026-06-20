@@ -295,9 +295,28 @@ function startBackgroundSync() {
 
   let credentials;
   try {
-    credentials = JSON.parse(credentialsJson);
+    let cleanJson = credentialsJson.trim();
+    
+    // Replace escaped double quotes with regular double quotes if present
+    if (cleanJson.includes('\\"')) {
+      cleanJson = cleanJson.replace(/\\"/g, '"');
+    }
+    
+    // Extract everything from the first '{' to the last '}'
+    const startIdx = cleanJson.indexOf('{');
+    const endIdx = cleanJson.lastIndexOf('}');
+    if (startIdx !== -1 && endIdx !== -1) {
+      cleanJson = cleanJson.substring(startIdx, endIdx + 1);
+    }
+    
+    credentials = JSON.parse(cleanJson);
+    
+    // Fix private_key newlines if they are escaped double backslashes
+    if (credentials.private_key && credentials.private_key.includes('\\n')) {
+      credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
+    }
   } catch (e) {
-    console.error('[Sync] Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON:', e.message);
+    console.error('[Sync] Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON:', e.message, 'Raw value sample:', credentialsJson.substring(0, 50));
     return;
   }
 
