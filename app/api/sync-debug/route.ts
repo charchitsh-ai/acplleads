@@ -1,75 +1,108 @@
 import { NextResponse } from 'next/server';
 
 export async function GET() {
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '';
-  const b64 = process.env.GOOGLE_SERVICE_ACCOUNT_B64 || '';
+  const raw = (process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '').trim();
+  const b64 = (process.env.GOOGLE_SERVICE_ACCOUNT_B64 || '').trim();
 
-  // Safety: only show non-sensitive diagnostic info
-  const length = raw.length;
-  const first80 = raw.substring(0, 80);
-  const last30 = raw.substring(Math.max(0, raw.length - 30));
-  
-  const hasEmail = raw.includes('client_email');
-  const hasPrivateKey = raw.includes('private_key');
-  const hasBeginKey = raw.includes('BEGIN PRIVATE KEY');
-  const startsWithBrace = raw.trimStart().startsWith('{');
-  const startsWithQuote = raw.trimStart().startsWith('"');
-  const hasEscapedN = raw.includes('\\n');
-  const hasRealNewlines = raw.includes('\n');
+  // Helper to diagnose a string candidate
+  const analyzeCandidate = (candidate: string, sourceName: string) => {
+    if (!candidate) return { status: 'empty' };
 
-  let parseResult = 'not attempted';
-  if (raw) {
-    try {
-      JSON.parse(raw);
-      parseResult = 'JSON.parse SUCCESS';
-    } catch (e: unknown) {
-      parseResult = `JSON.parse FAILED: ${e instanceof Error ? e.message.substring(0, 100) : String(e)}`;
+    const length = candidate.length;
+    const first80 = candidate.substring(0, 80);
+    const last30 = candidate.substring(Math.max(0, candidate.length - 30));
+    const startsWithBrace = candidate.startsWith('{');
+
+    let parseDirectStatus = 'not attempted';
+    let isDirectJsonSuccess = false;
+    if (startsWithBrace) {
+      try {
+        JSON.parse(candidate);
+        parseDirectStatus = 'SUCCESS';
+        isDirectJsonSuccess = true;
+      } catch (e: unknown) {
+        parseDirectStatus = `FAILED: ${e instanceof Error ? e.message.substring(0, 80) : String(e)}`;
+      }
     }
-  } else {
-    parseResult = 'empty';
-  }
 
-  // Base64 diagnostics
-  const b64Length = b64.length;
-  let b64ParseResult = 'empty';
-  let b64DecodedLength = 0;
-  let b64HasEmail = false;
-  let b64HasPrivateKey = false;
+    let isBase64Decodable = false;
+    let base64DecodedLength = 0;
+    let base64ParseStatus = 'not attempted';
+    let decodedJsonHasFields = false;
 
-  if (b64) {
-    try {
-      const decoded = Buffer.from(b64.trim(), 'base64').toString('utf8');
-      b64DecodedLength = decoded.length;
-      b64HasEmail = decoded.includes('client_email');
-      b64HasPrivateKey = decoded.includes('private_key');
-      JSON.parse(decoded);
-      b64ParseResult = 'JSON.parse SUCCESS';
-    } catch (e: unknown) {
-      b64ParseResult = `JSON.parse FAILED: ${e instanceof Error ? e.message.substring(0, 100) : String(e)}`;
+    if (!startsWithBrace) {
+      try {
+        const decoded = Buffer.from(candidate, 'base64').toString('utf8');
+        base64DecodedLength = decoded.length;
+        if (decoded.trim().startsWith('{')) {
+          isBase64Decodable = true;
+          try {
+            const parsed = JSON.parse(decoded);
+            base64ParseStatus = 'SUCCESS';
+            decodedJsonHasFields = !!(parsed.client_email && parsed.private_key);
+          } catch (e: unknown) {
+            base64ParseStatus = `FAILED: ${e instanceof Error ? e.message.substring(0, 80) : String(e)}`;
+          }
+        }
+      } catch (e) {
+        // Not decodable
+      }
     }
-  }
 
-  return NextResponse.json({
-    google_service_account_json: {
+    return {
+      status: 'present',
       length,
       first80,
       last30,
-      hasEmail,
-      hasPrivateKey,
-      hasBeginKey,
       startsWithBrace,
-      startsWithQuote,
-      hasEscapedN,
-      hasRealNewlines,
-      parseResult,
+      isDirectJsonSuccess,
+      parseDirectStatus,
+      isBase64Decodable,
+      base64DecodedLength,
+      base64ParseStatus,
+      decodedJsonHasFields,
+    };
+  };
+
+  const rawAnalysis = analyzeCandidate(raw, 'GOOGLE_SERVICE_ACCOUNT_JSON');
+  const b64Analysis = analyzeCandidate(b64, 'GOOGLE_SERVICE_ACCOUNT_B64');
+
+  // Run the actual resolution logic
+  let resolutionResult = 'NO_CREDENTIALS';
+  let effectiveEmail = null;
+  let effectiveKeyLength = 0;
+
+  try {
+    const candidate = b64 || raw;
+    if (candidate) {
+      let parsed = null;
+      if (candidate.startsWith('{')) {
+        parsed = JSON.parse(candidate);
+        resolutionResult = 'PARSED_DIRECT_JSON';
+      } else {
+        const decoded = Buffer.from(candidate, 'base64').toString('utf8');
+        parsed = JSON.parse(decoded);
+        resolutionResult = 'DECODED_AND_PARSED_BASE64';
+      }
+      effectiveEmail = parsed.client_email || null;
+      effectiveKeyLength = parsed.private_key ? parsed.private_key.length : 0;
+    }
+  } catch (e: unknown) {
+    resolutionResult = `ERROR: ${e instanceof Error ? e.message : String(e)}`;
+  }
+
+  return NextResponse.json({
+    diagnostics: {
+      GOOGLE_SERVICE_ACCOUNT_JSON: rawAnalysis,
+      GOOGLE_SERVICE_ACCOUNT_B64: b64Analysis,
     },
-    google_service_account_b64: {
-      length: b64Length,
-      decodedLength: b64DecodedLength,
-      hasEmail: b64HasEmail,
-      hasPrivateKey: b64HasPrivateKey,
-      parseResult: b64ParseResult,
+    effective_resolution: {
+      result: resolutionResult,
+      email: effectiveEmail,
+      private_key_length: effectiveKeyLength,
+      success: !!(effectiveEmail && effectiveKeyLength > 0),
     }
   });
 }
+
 

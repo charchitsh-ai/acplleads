@@ -239,22 +239,33 @@ function startBackgroundSync() {
   let credentials;
   try {
     let parsed = null;
-
     const b64 = process.env.GOOGLE_SERVICE_ACCOUNT_B64;
     const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    const candidate = (b64 || raw || '').trim();
 
-    if (b64) {
-      // BASE64 → UTF-8 string → JSON.parse  (100% reliable on all platforms)
-      const decoded = Buffer.from(b64.trim(), 'base64').toString('utf8');
-      parsed = JSON.parse(decoded);
-      console.log('[Sync] Credentials loaded via GOOGLE_SERVICE_ACCOUNT_B64 ✓');
-    } else if (raw) {
-      // Direct JSON string (may have issues on some hosts)
-      parsed = JSON.parse(raw.trim());
-      console.log('[Sync] Credentials loaded via GOOGLE_SERVICE_ACCOUNT_JSON ✓');
-    } else {
-      console.warn('[Sync] No Google credentials env var found. Set GOOGLE_SERVICE_ACCOUNT_B64. Sync disabled.');
+    if (!candidate) {
+      console.warn('[Sync] No Google credentials env var found. Set GOOGLE_SERVICE_ACCOUNT_B64 or GOOGLE_SERVICE_ACCOUNT_JSON. Sync disabled.');
       return;
+    }
+
+    if (candidate.startsWith('{')) {
+      // Raw JSON
+      parsed = JSON.parse(candidate);
+      console.log('[Sync] Credentials parsed directly from JSON ✓');
+    } else {
+      // Might be Base64
+      try {
+        const decoded = Buffer.from(candidate, 'base64').toString('utf8');
+        if (decoded.trim().startsWith('{')) {
+          parsed = JSON.parse(decoded);
+          console.log('[Sync] Credentials decoded and parsed from Base64 ✓');
+        } else {
+          throw new Error('Decoded Base64 string is not valid JSON');
+        }
+      } catch (err) {
+        // Fallback to trigger normal JSON.parse error if it's not base64 either
+        parsed = JSON.parse(candidate);
+      }
     }
 
     const { client_email, private_key } = parsed;
