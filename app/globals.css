@@ -140,7 +140,7 @@ select.crm-input option { background: var(--surface-2); }
 .mobile-only-flex { display: none; }
 .desktop-only { display: block; }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .mobile-only { display: block !important; }
   .mobile-only-flex { display: flex !important; }
   .desktop-only { display: none !important; }

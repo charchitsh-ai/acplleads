@@ -370,7 +370,7 @@ export default function Dashboard() {
         transition: 'transform 0.3s ease-in-out',
       }} className="mobile-sidebar desktop-sidebar">
         <style>{`
-          @media (min-width: 769px) {
+          @media (min-width: 1025px) {
             .desktop-sidebar { transform: translateX(0) !important; }
             .main-content { margin-left: 260px !important; }
           }
