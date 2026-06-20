@@ -143,20 +143,6 @@ async function processNewRows(supabase, sheetId, type, rows, startRow) {
       };
     } else {
       // mapping for meta sheet (AYKA Life (v1)):
-      // H: 120244507923 (index 7)
-      // I: Franchise LEAD (index 8)
-      // J: 14186501620 (index 9)
-      // K: AYKA Life (v1) (index 10)
-      // L: false (index 11)
-      // M: ig/fb (index 12)
-      // N: model (index 13)
-      // O: Full Name (index 14)
-      // P: Email (index 15)
-      // Q: Contact/Phone (index 16)
-      // R: City (index 17)
-      // S: State (index 18)
-      // T: Occupation/Message (index 19)
-
       // Col A (index 0) is usually Timestamp
       const rawDate = rowArr[0];
       if (rawDate) {
@@ -308,55 +294,63 @@ function startBackgroundSync() {
 
   let credentials;
   try {
-    // Regex to extract client_email
-    const emailMatch = credentialsJson.match(/"client_email"\s*:\s*"([^"]+)"/);
-    const client_email = emailMatch ? emailMatch[1].trim() : null;
+    let client_email = null;
+    let private_key = null;
 
-    // Regex to extract private_key (which can contain multiple lines and escaped newlines)
-    const keyMatch = credentialsJson.match(/"private_key"\s*:\s*"([\s\S]*?)"/);
-    let private_key = keyMatch ? keyMatch[1] : null;
+    // ── Strategy 1: JSON.parse ─────────────────────────────────────────────
+    // When JSON.parse works, private_key already has REAL newlines → valid PEM
+    // No reconstruction needed, use directly!
+    try {
+      const parsed = JSON.parse(credentialsJson);
+      client_email = parsed.client_email;
+      private_key = parsed.private_key;
+      console.log('[Sync] Strategy 1 (JSON.parse) succeeded. Email:', client_email);
+    } catch (jsonErr) {
+      console.log('[Sync] Strategy 1 (JSON.parse) failed, trying regex...');
+
+      // ── Strategy 2: Regex + literal \\n → real newlines ─────────────────
+      // Hostinger sometimes double-escapes the JSON value as a plain string
+      const emailMatch = credentialsJson.match(/"client_email"\s*:\s*"([^"]+)"/);
+      client_email = emailMatch ? emailMatch[1].trim() : null;
+
+      // Extract the full key block (handles Hostinger escaped strings)
+      const keyMatch = credentialsJson.match(/"private_key"\s*:\s*"(-----BEGIN PRIVATE KEY-----[\s\S]*?-----END PRIVATE KEY-----\\n?)(?<!\\)"/);
+      if (keyMatch) {
+        // Replace literal \n sequences with actual newline characters
+        private_key = keyMatch[1]
+          .replace(/\\n/g, '\n')
+          .replace(/\\r/g, '')
+          .replace(/\\\\/g, '\\');
+        console.log('[Sync] Strategy 2 (Regex) succeeded. Email:', client_email);
+      }
+    }
 
     if (!client_email || !private_key) {
-      throw new Error('Could not find client_email or private_key in the provided JSON string.');
+      throw new Error('Could not extract client_email or private_key. Check GOOGLE_SERVICE_ACCOUNT_JSON format.');
     }
 
-    // Clean up private_key to guarantee standard PEM format
-    let cleanKey = private_key;
+    // Ensure key has proper PEM newlines (safety net for any edge cases)
+    if (!private_key.includes('\n')) {
+      // Key has no real newlines at all - do manual reconstruction
+      let cleanKey = private_key
+        .replace(/-----BEGIN PRIVATE KEY-----/g, '')
+        .replace(/-----END PRIVATE KEY-----/g, '')
+        .replace(/\\n/g, '')
+        .replace(/\\/g, '')
+        .replace(/[\s\r\n"']/g, '');
 
-    // 1. Remove standard headers/footers to isolate the raw base64 data
-    cleanKey = cleanKey
-      .replace(/-----BEGIN PRIVATE KEY-----/g, '')
-      .replace(/-----END PRIVATE KEY-----/g, '');
-
-    // 2. Remove escaped backslash-n, backslash-r, backslash-t and backslashes
-    cleanKey = cleanKey
-      .replace(/\\n/g, '')
-      .replace(/\\r/g, '')
-      .replace(/\\t/g, '')
-      .replace(/\\/g, '');
-
-    // 3. Strip all remaining whitespace, newlines, and quotes
-    cleanKey = cleanKey.replace(/[\s\r\n"']/g, '');
-
-    // 4. Reconstruct the PEM key with 64-character chunks per line
-    const chunks = [];
-    for (let i = 0; i < cleanKey.length; i += 64) {
-      chunks.push(cleanKey.substring(i, i + 64));
+      const chunks = [];
+      for (let i = 0; i < cleanKey.length; i += 64) {
+        chunks.push(cleanKey.substring(i, i + 64));
+      }
+      private_key = `-----BEGIN PRIVATE KEY-----\n${chunks.join('\n')}\n-----END PRIVATE KEY-----\n`;
+      console.log('[Sync] Strategy 3 (Manual PEM reconstruction) used. Base64 length:', cleanKey.length);
     }
-    const formattedPrivateKey = `-----BEGIN PRIVATE KEY-----\n${chunks.join('\n')}\n-----END PRIVATE KEY-----\n`;
 
-    credentials = {
-      client_email,
-      private_key: formattedPrivateKey
-    };
-
-    console.log('[Sync] Credentials parsed and PEM key reconstructed successfully. Email:', client_email);
-    console.log('[Sync] Reconstructed Key Details - Length:', formattedPrivateKey.length);
-    console.log('[Sync] Raw Base64 Key Length:', cleanKey.length);
-    console.log('[Sync] Raw Base64 Start:', cleanKey.substring(0, 50));
-    console.log('[Sync] Raw Base64 End:', cleanKey.substring(cleanKey.length - 50));
+    credentials = { client_email, private_key };
+    console.log('[Sync] Credentials ready. Email:', client_email, '| Key length:', private_key.length);
   } catch (e) {
-    console.error('[Sync] Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON using Regex:', e.message);
+    console.error('[Sync] Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON:', e.message);
     return;
   }
 
