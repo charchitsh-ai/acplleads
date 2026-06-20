@@ -245,13 +245,13 @@ async function processNewRows(supabase, sheetId, type, rows, startRow) {
 }
 
 async function syncSheet(authClient, supabase, sheetConfig) {
-  const { sheetId, tabName, type } = sheetConfig;
-  const sheets = google.sheets({ version: 'v4', auth: authClient });
-
-  // Get last synced row
-  const lastSynced = await getLastSyncedRow(supabase, sheetId);
-
   try {
+    const { sheetId, tabName, type } = sheetConfig;
+    const sheets = google.sheets({ version: 'v4', auth: authClient });
+
+    // Get last synced row
+    const lastSynced = await getLastSyncedRow(supabase, sheetId);
+
     // We read starting from lastSynced + 1 (to catch new rows)
     const range = `${tabName}!A${lastSynced + 1}:Z`;
     const response = await sheets.spreadsheets.values.get({
@@ -272,9 +272,9 @@ async function syncSheet(authClient, supabase, sheetConfig) {
   } catch (err) {
     if (err.message && err.message.includes('Unable to parse range')) {
       // This usually means there are no rows beyond the current limit yet
-      console.log(`[Sync] No new rows beyond index ${lastSynced} for ${type} sheet`);
+      console.log(`[Sync] No new rows beyond index for ${sheetConfig.type} sheet`);
     } else {
-      console.error(`[Sync] Error syncing ${type} sheet:`, err.message);
+      console.error(`[Sync] Error syncing ${sheetConfig.type} sheet:`, err.message);
     }
   }
 }
@@ -329,8 +329,12 @@ function startBackgroundSync() {
   console.log('[Sync] Background sheets sync worker started (interval: 15 seconds)');
 
   syncInterval = setInterval(async () => {
-    for (const sheetConfig of SHEETS_TO_SYNC) {
-      await syncSheet(authClient, supabase, sheetConfig);
+    try {
+      for (const sheetConfig of SHEETS_TO_SYNC) {
+        await syncSheet(authClient, supabase, sheetConfig);
+      }
+    } catch (e) {
+      console.error('[Sync] Fatal error in sync interval loop:', e.message);
     }
   }, 15000); // 15 seconds
 }
