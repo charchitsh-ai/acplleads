@@ -307,20 +307,37 @@ function startBackgroundSync() {
       throw new Error('Could not find client_email or private_key in the provided JSON string.');
     }
 
-    // Clean up private_key
-    // 1. Replace escaped double quotes \" with "
-    private_key = private_key.replace(/\\"/g, '"');
-    // 2. Replace escaped newlines \n with real newlines
-    private_key = private_key.replace(/\\n/g, '\n');
-    // 3. Replace double backslashes \\ with \
-    private_key = private_key.replace(/\\\\/g, '\\');
+    // Clean up private_key to guarantee standard PEM format
+    let cleanKey = private_key;
+
+    // 1. Remove standard headers/footers to isolate the raw base64 data
+    cleanKey = cleanKey
+      .replace(/-----BEGIN PRIVATE KEY-----/g, '')
+      .replace(/-----END PRIVATE KEY-----/g, '');
+
+    // 2. Remove escaped backslash-n, backslash-r, backslash-t and backslashes
+    cleanKey = cleanKey
+      .replace(/\\n/g, '')
+      .replace(/\\r/g, '')
+      .replace(/\\t/g, '')
+      .replace(/\\/g, '');
+
+    // 3. Strip all remaining whitespace, newlines, and quotes
+    cleanKey = cleanKey.replace(/[\s\r\n"']/g, '');
+
+    // 4. Reconstruct the PEM key with 64-character chunks per line
+    const chunks = [];
+    for (let i = 0; i < cleanKey.length; i += 64) {
+      chunks.push(cleanKey.substring(i, i + 64));
+    }
+    const formattedPrivateKey = `-----BEGIN PRIVATE KEY-----\n${chunks.join('\n')}\n-----END PRIVATE KEY-----\n`;
 
     credentials = {
       client_email,
-      private_key
+      private_key: formattedPrivateKey
     };
 
-    console.log('[Sync] Credentials parsed successfully using Regex. Email:', client_email);
+    console.log('[Sync] Credentials parsed and PEM key reconstructed successfully. Email:', client_email);
   } catch (e) {
     console.error('[Sync] Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON using Regex:', e.message);
     return;
