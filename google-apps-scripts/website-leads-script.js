@@ -1,5 +1,5 @@
 const SHEET_ID = '1YyuiyDst6ldqW7Whhjo0Sf05rsUqK45OTCWF_NQEyuo';
-const SHEET_NAME = 'Sheet1'; // Update this if your tab name is different
+const SHEET_NAME = 'Wesbite lead'; // Update this if your tab name is different
 
 // Internal team email addresses
 const TEAM_EMAILS = [
@@ -143,26 +143,25 @@ function syncAllRows() {
   Logger.log('Starting bulk sync. Total rows: ' + (total - 1));
 
   for (var i = 1; i < total; i++) { // i=0 is header row
-    var name = String(data[i][2] || '').trim(); // C: Name (index 2)
+    var firstName = String(data[i][2] || '').trim(); // C: First name
+    var lastName  = String(data[i][3] || '').trim(); // D: Last name
+    var name = (firstName + ' ' + lastName).trim();
     if (!name) { skipped++; continue; }
 
     batch.push({
       s_no:             parseInt(data[i][0]) || null,           // A: S.No
       created_at:       String(data[i][1] || ''),               // B: Date (index 1)
-      name:             name,                                    // C: Name
-      city:             String(data[i][3]  || ''),              // D: City
-      state:            String(data[i][4]  || ''),              // E: State
-      occupation:       String(data[i][5]  || ''),              // F: Occupation
-      assigned_to:      String(data[i][6]  || ''),              // G: Assigned To
-      fbdm:             String(data[i][7]  || ''),              // H: FBDM
-      fm_type:          String(data[i][8]  || ''),              // I: FM Type
-      phone:            String(data[i][9]  || ''),              // J: Contact
-      email:            String(data[i][10] || ''),              // K: Email
-      source:           String(data[i][11] || 'Website'),       // L: Source
-      lead_quality:     String(data[i][12] || 'cold'),          // M: Quality
-      follow_up_status: String(data[i][13] || '#First_Call'),   // N: Status
-      objection_tag:    String(data[i][14] || ''),              // O: Objection Tag
-      remark:           String(data[i][15] || ''),              // P: Last Remark
+      name:             name,                                   // C+D: Full Name
+      email:            String(data[i][4] || ''),               // E: Email
+      phone:            String(data[i][5] || ''),               // F: Contact number
+      city:             String(data[i][6] || ''),               // G: City
+      state:            String(data[i][7] || ''),               // H: State
+      fm_type:          String(data[i][8] || ''),               // I: Franchise model
+      occupation:       String(data[i][9] || ''),               // J: Current occupation
+      remark:           String(data[i][10] || ''),              // K: Comment / Message
+      source:           'Website',
+      lead_quality:     'cold',
+      follow_up_status: '#First_Call',
     });
 
     // Send in batches of 200

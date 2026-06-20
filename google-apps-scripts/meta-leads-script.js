@@ -18,20 +18,20 @@
 var CRM_ENDPOINT = "https://aykacare.co.in/api/leads/capture";
 
 var CAPTURE_SECRET = "ayka-crm-secret-2024"; // must match LEADS_CAPTURE_SECRET in .env.local
-var SHEET_NAME     = "Sheet1";               // change to your actual sheet tab name
+var SHEET_NAME     = "AYKA Life (v1)";       // change to your actual sheet tab name
 var SOURCE         = "Facebook_Ads";         // shown in CRM as the lead source
 var HEADER_ROW     = 1;                      // row number of your column headers
 
 // Column LETTERS in your sheet (edit to match your Meta sheet layout):
 var COL = {
   timestamp:  "A",  // Timestamp / Date
-  name:       "B",  // Full Name
-  phone:      "C",  // Phone Number
-  email:      "D",  // Email
-  city:       "E",  // City
-  state:      "F",  // State / Province
-  fm_type:    "G",  // FM Type (CF/MF/DF/SF) — if your form has this field
-  message:    "H",  // Any notes/message field
+  name:       "O",  // Full Name
+  phone:      "Q",  // Phone Number
+  email:      "P",  // Email
+  city:       "R",  // City
+  state:      "S",  // State / Province
+  fm_type:    "N",  // FM Type / Franchise Model
+  message:    "T",  // Any notes/message field
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
