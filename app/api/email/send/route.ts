@@ -27,14 +27,26 @@ export async function POST(req: NextRequest) {
 
     let sendErrorMsg = null
 
-    // Helper to format HTML
+    // Helper to format HTML and handle markdown links
+    const markdownToHtml = (text: string) => {
+      // Convert markdown links [Text](URL) to HTML links
+      let html = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, label, url) => {
+        return `<a href="${url}" style="color: #2563eb; text-decoration: underline;">${label}</a>`
+      })
+      
+      // Split by double newlines for paragraphs
+      const paragraphs = html.split(/\n\n+/)
+      return paragraphs
+        .map(p => {
+          const content = p.trim().replace(/\n/g, '<br/>')
+          return `<p style="margin: 0 0 16px 0; line-height: 1.6;">${content}</p>`
+        })
+        .join('')
+    }
+
     const htmlBody = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <div style="color: #111827; line-height: 1.6; white-space: pre-wrap;">${body.replace(/\n/g, '<br/>')}</div>
-        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
-        <div style="font-size: 12px; color: #9ca3af;">
-          This email was sent from AYKA CRM. Please do not reply to this email directly.
-        </div>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #111827;">
+        ${markdownToHtml(body)}
       </div>
     `
 
