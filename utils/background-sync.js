@@ -1,4 +1,9 @@
-const { google } = require('googleapis');
+let googleLib;
+try {
+  googleLib = require('googleapis');
+} catch (e) {
+  console.error('[Sync] Could not load googleapis:', e.message);
+}
 const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
 const path = require('path');
@@ -246,6 +251,8 @@ async function processNewRows(supabase, sheetId, type, rows, startRow) {
 
 async function syncSheet(authClient, supabase, sheetConfig) {
   try {
+    const google = googleLib ? googleLib.google : null;
+    if (!google) { console.error('[Sync] googleapis not loaded'); return; }
     const { sheetId, tabName, type } = sheetConfig;
     const sheets = google.sheets({ version: 'v4', auth: authClient });
 
@@ -286,6 +293,12 @@ function startBackgroundSync() {
     console.log('[Sync] Background sync is already running.');
     return;
   }
+
+  if (!googleLib) {
+    console.error('[Sync] googleapis not available. Background sync disabled.');
+    return;
+  }
+  const google = googleLib.google;
 
   const credentialsJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (!credentialsJson) {
