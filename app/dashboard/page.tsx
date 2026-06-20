@@ -45,6 +45,7 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'team' | 'leads' | 'sync'>('dashboard')
   const [showImport, setShowImport] = useState(false)
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([])
+  const [sortDateAsc, setSortDateAsc] = useState(false) // false = newest first (default)
   const supabase = createClient()
   const router = useRouter()
 
@@ -54,8 +55,8 @@ export default function Dashboard() {
       let query = supabase
         .from('leads')
         .select('*', { count: 'exact' })
-        .order('created_at', { ascending: false })
-        .order('s_no', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: sortDateAsc })
+        .order('s_no', { ascending: sortDateAsc, nullsFirst: false })
 
       if (search.trim()) {
         const s = search.trim()
@@ -76,7 +77,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false)
     }
-  }, [search, filterQuality, filterFm, filterStatus, supabase])
+  }, [search, filterQuality, filterFm, filterStatus, sortDateAsc, supabase])
 
   const fetchStats = useCallback(async () => {
     const { count: total } = await supabase.from('leads').select('*', { count: 'exact', head: true })
@@ -639,6 +640,23 @@ export default function Dashboard() {
                                   }
                                 }}
                               />
+                            ) : col.label === 'Date' ? (
+                              <button
+                                onClick={() => setSortDateAsc(prev => !prev)}
+                                title={sortDateAsc ? 'Oldest first — click for Newest first' : 'Newest first — click for Oldest first'}
+                                style={{
+                                  display: 'flex', alignItems: 'center', gap: '4px',
+                                  background: 'none', border: 'none', cursor: 'pointer',
+                                  color: 'var(--accent)', fontSize: '11px',
+                                  fontWeight: '700', letterSpacing: '0.5px',
+                                  textTransform: 'uppercase', padding: 0
+                                }}
+                              >
+                                DATE
+                                <span style={{ fontSize: '13px', lineHeight: 1 }}>
+                                  {sortDateAsc ? '↑' : '↓'}
+                                </span>
+                              </button>
                             ) : col.label}
                           </th>
                         ))}
