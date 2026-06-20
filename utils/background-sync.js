@@ -295,28 +295,34 @@ function startBackgroundSync() {
 
   let credentials;
   try {
-    let cleanJson = credentialsJson.trim();
-    
-    // Replace escaped double quotes with regular double quotes if present
-    if (cleanJson.includes('\\"')) {
-      cleanJson = cleanJson.replace(/\\"/g, '"');
+    // Regex to extract client_email
+    const emailMatch = credentialsJson.match(/"client_email"\s*:\s*"([^"]+)"/);
+    const client_email = emailMatch ? emailMatch[1].trim() : null;
+
+    // Regex to extract private_key (which can contain multiple lines and escaped newlines)
+    const keyMatch = credentialsJson.match(/"private_key"\s*:\s*"([\s\S]*?)"/);
+    let private_key = keyMatch ? keyMatch[1] : null;
+
+    if (!client_email || !private_key) {
+      throw new Error('Could not find client_email or private_key in the provided JSON string.');
     }
-    
-    // Extract everything from the first '{' to the last '}'
-    const startIdx = cleanJson.indexOf('{');
-    const endIdx = cleanJson.lastIndexOf('}');
-    if (startIdx !== -1 && endIdx !== -1) {
-      cleanJson = cleanJson.substring(startIdx, endIdx + 1);
-    }
-    
-    credentials = JSON.parse(cleanJson);
-    
-    // Fix private_key newlines if they are escaped double backslashes
-    if (credentials.private_key && credentials.private_key.includes('\\n')) {
-      credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
-    }
+
+    // Clean up private_key
+    // 1. Replace escaped double quotes \" with "
+    private_key = private_key.replace(/\\"/g, '"');
+    // 2. Replace escaped newlines \n with real newlines
+    private_key = private_key.replace(/\\n/g, '\n');
+    // 3. Replace double backslashes \\ with \
+    private_key = private_key.replace(/\\\\/g, '\\');
+
+    credentials = {
+      client_email,
+      private_key
+    };
+
+    console.log('[Sync] Credentials parsed successfully using Regex. Email:', client_email);
   } catch (e) {
-    console.error('[Sync] Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON:', e.message, 'Raw value sample:', credentialsJson.substring(0, 50));
+    console.error('[Sync] Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON using Regex:', e.message);
     return;
   }
 
