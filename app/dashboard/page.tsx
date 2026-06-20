@@ -143,6 +143,26 @@ export default function Dashboard() {
     fetchProfiles()
   }, [fetchProfiles])
 
+  // ── Supabase Realtime: auto-refresh when any lead changes ──────────────────
+  useEffect(() => {
+    const channel = supabase
+      .channel('leads-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'leads' },
+        () => {
+          // New lead ayi, update hui, ya delete hui — sab cases me refresh
+          fetchLeads()
+          fetchStats()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [supabase, fetchLeads, fetchStats])
+
   // Reset page when filters change
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect

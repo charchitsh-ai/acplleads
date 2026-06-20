@@ -24,6 +24,7 @@ var HEADER_ROW     = 1;                      // row number of your column header
 
 // Column LETTERS in your sheet (edit to match your Meta sheet layout):
 var COL = {
+  timestamp:  "A",  // Timestamp / Date
   name:       "B",  // Full Name
   phone:      "C",  // Phone Number
   email:      "D",  // Email
@@ -62,6 +63,7 @@ function onNewRow(e) {
     }
 
     var payload = {
+      created_at:   String(getCell(COL.timestamp) || ""),
       name:         name,
       phone:        String(getCell(COL.phone) || ""),
       email:        String(getCell(COL.email) || ""),
@@ -99,6 +101,7 @@ function syncAllRows() {
     if (!name) continue;
 
     batch.push({
+      created_at:   String(getCell(COL.timestamp, row) || ""),
       name:         name,
       phone:        String(getCell(COL.phone, row) || ""),
       email:        String(getCell(COL.email, row) || ""),

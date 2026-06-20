@@ -72,22 +72,39 @@ export async function POST(req: NextRequest) {
     // ── Map and validate each row ────────────────────────────────────
     const rows = leads
       .filter((l) => l.name && String(l.name).trim())  // name is required
-      .map((l) => ({
-        s_no:              l.s_no ? parseInt(String(l.s_no)) : null,
-        name:              String(l.name).trim(),
-        contact:           l.phone || l.contact || l.mobile || null,
-        email:             l.email || null,
-        city:              l.city || null,
-        state:             l.state || null,
-        occupation:        l.occupation || null,
-        source:            l.source || 'Unknown',         // 'Website' or 'Facebook_Ads'
-        assigned_to:       l.assigned_to || 'Unassigned',
-        fm_type:           normFm(l.fm_type) ?? undefined,
-        lead_quality:      normQuality(l.lead_quality) ?? '#Cold_Lead',
-        follow_up_status:  '#New_Lead',
-        last_remark:       l.remark || l.notes || l.message || null,
-        lead_date:         new Date().toISOString().split('T')[0],
-      }))
+      .map((l) => {
+        let parsedCreatedAt: string | undefined = undefined
+        const rawDate = l.created_at || l.timestamp || l.date
+        if (rawDate) {
+          const d = new Date(rawDate)
+          if (!isNaN(d.getTime())) {
+            parsedCreatedAt = d.toISOString()
+          }
+        }
+
+        const row: any = {
+          s_no:              l.s_no ? parseInt(String(l.s_no)) : null,
+          name:              String(l.name).trim(),
+          contact:           l.phone || l.contact || l.mobile || null,
+          email:             l.email || null,
+          city:              l.city || null,
+          state:             l.state || null,
+          occupation:        l.occupation || null,
+          source:            l.source || 'Unknown',         // 'Website' or 'Facebook_Ads'
+          assigned_to:       l.assigned_to || 'Unassigned',
+          fm_type:           normFm(l.fm_type) ?? undefined,
+          lead_quality:      normQuality(l.lead_quality) ?? '#Cold_Lead',
+          follow_up_status:  '#New_Lead',
+          last_remark:       l.remark || l.notes || l.message || null,
+          lead_date:         parsedCreatedAt ? parsedCreatedAt.split('T')[0] : new Date().toISOString().split('T')[0],
+        }
+
+        if (parsedCreatedAt) {
+          row.created_at = parsedCreatedAt
+        }
+
+        return row
+      })
 
     if (!rows.length) {
       return NextResponse.json({ error: 'All rows missing required field: name' }, { status: 422 })

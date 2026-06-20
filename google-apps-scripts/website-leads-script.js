@@ -46,6 +46,7 @@ function doPost(e) {
     // 2. Send to AYKA CRM immediately (non-blocking)
     try {
       sendRowToCRM({
+        created_at:   new Date().toISOString(),
         name:         fullName,
         phone:        payload.phone      || '',
         email:        payload.email      || '',
@@ -147,6 +148,7 @@ function syncAllRows() {
 
     batch.push({
       s_no:             parseInt(data[i][0]) || null,           // A: S.No
+      created_at:       String(data[i][1] || ''),               // B: Date (index 1)
       name:             name,                                    // C: Name
       city:             String(data[i][3]  || ''),              // D: City
       state:            String(data[i][4]  || ''),              // E: State
