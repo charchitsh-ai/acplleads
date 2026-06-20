@@ -722,7 +722,29 @@ export default function Dashboard() {
                             </div>
                           </td>
                           <td style={{ padding: '8px 10px', width: '180px', overflow: 'hidden' }}>
-                            <div style={{ fontWeight: '500', fontSize: '13.5px', color: 'var(--text-primary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }} title={lead.name}>{lead.name}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                              <span style={{ fontWeight: '500', fontSize: '13.5px', color: 'var(--text-primary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '110px' }} title={lead.name}>
+                                {lead.name}
+                              </span>
+                              {lead.source && lead.source.includes(',') && (
+                                <span 
+                                  title={`Re-submitted via: ${lead.source}`}
+                                  style={{
+                                    fontSize: '9px',
+                                    background: 'rgba(255, 165, 2, 0.15)',
+                                    color: '#ffa502',
+                                    padding: '1px 5px',
+                                    borderRadius: '3px',
+                                    fontWeight: '700',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.3px',
+                                    whiteSpace: 'nowrap'
+                                  }}
+                                >
+                                  Re-submitted
+                                </span>
+                              )}
+                            </div>
                             {lead.email && <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '1px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }} title={lead.email}>{lead.email}</div>}
                           </td>
                           <td style={{ padding: '8px 10px', width: '115px', whiteSpace: 'nowrap' }}>
