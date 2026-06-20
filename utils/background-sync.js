@@ -307,17 +307,15 @@ function startBackgroundSync() {
     return;
   }
 
-  // Set up JWT Client for Google Sheets API
-  const authClient = new google.auth.JWT(
-    credentials.client_email,
-    null,
-    credentials.private_key,
-    ['https://www.googleapis.com/auth/spreadsheets.readonly']
-  );
+  // Set up Google Auth Client
+  const authClient = new google.auth.GoogleAuth({
+    credentials,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+  });
 
   const SHEETS_TO_SYNC = [
     {
-      sheetId: '1YyuiyDst6ldqW7Whhjo0Sf05rsUqK45OTCWF_NQEyuo',
+      sheetId: '1m82l8vZwmFo-9qt71Vw7av46ai4Jy-HulAOt_MPNQM4',
       tabName: 'Wesbite lead',
       type: 'website'
     },

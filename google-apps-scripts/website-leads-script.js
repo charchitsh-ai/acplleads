@@ -1,4 +1,4 @@
-const SHEET_ID = '1YyuiyDst6ldqW7Whhjo0Sf05rsUqK45OTCWF_NQEyuo';
+const SHEET_ID = '1m82l8vZwmFo-9qt71Vw7av46ai4Jy-HulAOt_MPNQM4';
 const SHEET_NAME = 'Wesbite lead'; // Update this if your tab name is different
 
 // Internal team email addresses
