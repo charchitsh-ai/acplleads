@@ -338,6 +338,7 @@ function startBackgroundSync() {
     };
 
     console.log('[Sync] Credentials parsed and PEM key reconstructed successfully. Email:', client_email);
+    console.log('[Sync] Reconstructed Key Details - Length:', formattedPrivateKey.length, 'Start:', formattedPrivateKey.substring(0, 40).replace(/\n/g, '[LF]'), 'End:', formattedPrivateKey.substring(formattedPrivateKey.length - 40).replace(/\n/g, '[LF]'));
   } catch (e) {
     console.error('[Sync] Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON using Regex:', e.message);
     return;
