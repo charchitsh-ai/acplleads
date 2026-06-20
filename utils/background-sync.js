@@ -30,17 +30,6 @@ function normFm(val) {
   return undefined;
 }
 
-// Normalized quality mapping
-function normQuality(val) {
-  if (!val) return undefined;
-  const v = val.toLowerCase();
-  if (v.includes('hot')) return '#Hot_Lead';
-  if (v.includes('warm')) return '#Warm_Lead';
-  if (v.includes('cold')) return '#Cold_Lead';
-  if (v.includes('low')) return '#Low_Potential';
-  return undefined;
-}
-
 // Helper to read sync state
 async function getLastSyncedRow(supabase, sheetId) {
   try {
@@ -50,22 +39,17 @@ async function getLastSyncedRow(supabase, sheetId) {
         .select('last_synced_row')
         .eq('sheet_id', sheetId)
         .single();
-      if (!error && data) {
-        return data.last_synced_row;
-      }
+      if (!error && data) return data.last_synced_row;
     }
-  } catch (e) {
-    // Suppress and fallback
-  }
+  } catch (e) { /* suppress */ }
 
-  // Fallback to local file
   try {
     if (fs.existsSync(STATE_FILE)) {
       const state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
       return state[sheetId] || 1;
     }
   } catch (e) {
-    console.error('Failed to read local sync state:', e);
+    console.error('[Sync] Failed to read local sync state:', e);
   }
   return 1;
 }
@@ -79,11 +63,8 @@ async function saveLastSyncedRow(supabase, sheetId, rowNum) {
         .upsert({ sheet_id: sheetId, last_synced_row: rowNum });
       if (!error) return;
     }
-  } catch (e) {
-    // Suppress and fallback
-  }
+  } catch (e) { /* suppress */ }
 
-  // Fallback to local file
   try {
     let state = {};
     if (fs.existsSync(STATE_FILE)) {
@@ -92,38 +73,26 @@ async function saveLastSyncedRow(supabase, sheetId, rowNum) {
     state[sheetId] = rowNum;
     fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), 'utf8');
   } catch (e) {
-    console.error('Failed to write local sync state:', e);
+    console.error('[Sync] Failed to write local sync state:', e);
   }
 }
 
 async function processNewRows(supabase, sheetId, type, rows, startRow) {
   console.log(`[Sync] Processing ${rows.length} new rows for ${type} sheet starting at row ${startRow}`);
-  
+
   const formattedRows = rows.map((rowArr, index) => {
     const rowNum = startRow + index;
     let parsedCreatedAt = undefined;
 
     if (type === 'website') {
-      // mapping:
-      // data[1]: Date
-      // data[2]: First name
-      // data[3]: Last name
-      // data[4]: Email
-      // data[5]: Contact
-      // data[6]: City
-      // data[7]: State
-      // data[8]: FM Type / Model
-      // data[9]: Occupation
-      // data[10]: Comment / Message
       const rawDate = rowArr[1];
       if (rawDate) {
         const d = new Date(rawDate);
         if (!isNaN(d.getTime())) parsedCreatedAt = d.toISOString();
       }
-
       const firstName = String(rowArr[2] || '').trim();
-      const lastName = String(rowArr[3] || '').trim();
-      const fullName = (firstName + ' ' + lastName).trim() || 'Website Lead';
+      const lastName  = String(rowArr[3] || '').trim();
+      const fullName  = (firstName + ' ' + lastName).trim() || 'Website Lead';
 
       return {
         s_no: parseInt(rowArr[0]) || rowNum,
@@ -142,14 +111,12 @@ async function processNewRows(supabase, sheetId, type, rows, startRow) {
         created_at: parsedCreatedAt || new Date().toISOString()
       };
     } else {
-      // mapping for meta sheet (AYKA Life (v1)):
-      // Col A (index 0) is usually Timestamp
+      // meta sheet
       const rawDate = rowArr[0];
       if (rawDate) {
         const d = new Date(rawDate);
         if (!isNaN(d.getTime())) parsedCreatedAt = d.toISOString();
       }
-
       const fullName = String(rowArr[14] || '').trim() || 'Meta Lead';
 
       return {
@@ -170,65 +137,46 @@ async function processNewRows(supabase, sheetId, type, rows, startRow) {
     }
   });
 
-  // De-duplicate & insert/update in Supabase
   for (const row of formattedRows) {
     if (!row.name || !row.name.trim()) continue;
 
-    // Check for existing by phone or email
     let matchedLead = null;
     if (row.contact || row.email) {
       const filters = [];
       if (row.contact) filters.push(`contact.eq.${row.contact}`);
-      if (row.email) filters.push(`email.eq.${row.email}`);
+      if (row.email)   filters.push(`email.eq.${row.email}`);
 
-      const { data } = await supabase
-        .from('leads')
-        .select('*')
-        .or(filters.join(','));
-      
-      if (data && data.length > 0) {
-        matchedLead = data[0];
-      }
+      const { data } = await supabase.from('leads').select('*').or(filters.join(','));
+      if (data && data.length > 0) matchedLead = data[0];
     }
 
     if (matchedLead) {
-      // Lead exists -> Update it (Merge sources & append remarks)
       const updatedSource = matchedLead.source && !matchedLead.source.includes(row.source)
-        ? `${matchedLead.source}, ${row.source}`
-        : matchedLead.source;
-
+        ? `${matchedLead.source}, ${row.source}` : matchedLead.source;
       const updatedRemark = row.last_remark
-        ? (matchedLead.last_remark ? `${row.last_remark}\n---\n[Previous Remark]: ${matchedLead.last_remark}` : row.last_remark)
+        ? (matchedLead.last_remark ? `${row.last_remark}\n---\n[Previous]: ${matchedLead.last_remark}` : row.last_remark)
         : matchedLead.last_remark;
 
-      const { error: updErr } = await supabase
-        .from('leads')
-        .update({
-          last_remark: updatedRemark,
-          source: updatedSource,
-          last_activity: new Date().toISOString(),
-        })
-        .eq('id', matchedLead.id);
+      const { error: updErr } = await supabase.from('leads').update({
+        last_remark: updatedRemark,
+        source: updatedSource,
+        last_activity: new Date().toISOString(),
+      }).eq('id', matchedLead.id);
 
       if (!updErr) {
         await supabase.from('lead_activities').insert({
           lead_id: matchedLead.id,
           activity_type: 'updated',
-          remark: `Lead auto-synced & re-submitted via ${row.source}.${row.last_remark ? ` Remark: ${row.last_remark}` : ''}`,
+          remark: `Lead auto-synced & re-submitted via ${row.source}.`,
           created_by: 'System'
         });
         console.log(`[Sync] Updated existing lead: ${row.name}`);
       }
     } else {
-      // Lead does not exist -> Insert new lead
-      const { data: inserted, error: insErr } = await supabase
-        .from('leads')
-        .insert(row)
-        .select('id');
-
+      const { error: insErr } = await supabase.from('leads').insert(row).select('id');
       if (insErr) {
         console.error('[Sync] Error inserting lead:', insErr);
-      } else if (inserted && inserted.length > 0) {
+      } else {
         console.log(`[Sync] Inserted new lead: ${row.name}`);
       }
     }
@@ -239,35 +187,28 @@ async function syncSheet(authClient, supabase, sheetConfig) {
   try {
     const google = googleLib ? googleLib.google : null;
     if (!google) { console.error('[Sync] googleapis not loaded'); return; }
+
     const { sheetId, tabName, type } = sheetConfig;
     const sheets = google.sheets({ version: 'v4', auth: authClient });
 
-    // Get last synced row
     const lastSynced = await getLastSyncedRow(supabase, sheetId);
-
-    // We read starting from lastSynced + 1 (to catch new rows)
     const range = `${tabName}!A${lastSynced + 1}:Z`;
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: sheetId,
-      range: range,
-    });
+    const response = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range });
 
     const rows = response.data.values;
     if (rows && rows.length > 0) {
       await processNewRows(supabase, sheetId, type, rows, lastSynced + 1);
-      // Save new last synced row index
       const newLastSynced = lastSynced + rows.length;
       await saveLastSyncedRow(supabase, sheetId, newLastSynced);
-      console.log(`[Sync] Sheet ${type} synced successfully. New last_synced_row: ${newLastSynced}`);
+      console.log(`[Sync] Sheet "${type}" synced. New last_row: ${newLastSynced}`);
     } else {
-      console.log(`[Sync] No new rows for ${type} sheet`);
+      console.log(`[Sync] No new rows for "${type}" sheet`);
     }
   } catch (err) {
     if (err.message && err.message.includes('Unable to parse range')) {
-      // This usually means there are no rows beyond the current limit yet
-      console.log(`[Sync] No new rows beyond index for ${sheetConfig.type} sheet`);
+      console.log(`[Sync] No new rows beyond index for "${sheetConfig.type}" sheet`);
     } else {
-      console.error(`[Sync] Error syncing ${sheetConfig.type} sheet:`, err.message);
+      console.error(`[Sync] Error syncing "${sheetConfig.type}" sheet:`, err.message);
     }
   }
 }
@@ -286,100 +227,65 @@ function startBackgroundSync() {
   }
   const google = googleLib.google;
 
-  const credentialsJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if (!credentialsJson) {
-    console.warn('[Sync] GOOGLE_SERVICE_ACCOUNT_JSON not set. Background sync disabled.');
-    return;
-  }
-
+  // ── Load Google Service Account credentials ────────────────────────────────
+  //
+  //  RECOMMENDED: Set env var  GOOGLE_SERVICE_ACCOUNT_B64
+  //               Value = base64 of your service-account JSON file
+  //               Run this in PowerShell to get the value:
+  //               [Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\to\sa.json"))
+  //
+  //  FALLBACK:    GOOGLE_SERVICE_ACCOUNT_JSON = raw JSON (may fail on Hostinger)
+  //
   let credentials;
   try {
-    let client_email = null;
-    let private_key = null;
+    let parsed = null;
 
-    // ── Strategy 1: JSON.parse ─────────────────────────────────────────────
-    // When JSON.parse works, private_key already has REAL newlines → valid PEM
-    // No reconstruction needed, use directly!
-    try {
-      const parsed = JSON.parse(credentialsJson);
-      client_email = parsed.client_email;
-      private_key = parsed.private_key;
-      console.log('[Sync] Strategy 1 (JSON.parse) succeeded. Email:', client_email);
-    } catch (jsonErr) {
-      console.log('[Sync] Strategy 1 (JSON.parse) failed, trying regex...');
+    const b64 = process.env.GOOGLE_SERVICE_ACCOUNT_B64;
+    const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
 
-      // ── Strategy 2: Regex + literal \\n → real newlines ─────────────────
-      // Hostinger sometimes double-escapes the JSON value as a plain string
-      const emailMatch = credentialsJson.match(/"client_email"\s*:\s*"([^"]+)"/);
-      client_email = emailMatch ? emailMatch[1].trim() : null;
-
-      // Extract the full key block (handles Hostinger escaped strings)
-      const keyMatch = credentialsJson.match(/"private_key"\s*:\s*"(-----BEGIN PRIVATE KEY-----[\s\S]*?-----END PRIVATE KEY-----\\n?)(?<!\\)"/);
-      if (keyMatch) {
-        // Replace literal \n sequences with actual newline characters
-        private_key = keyMatch[1]
-          .replace(/\\n/g, '\n')
-          .replace(/\\r/g, '')
-          .replace(/\\\\/g, '\\');
-        console.log('[Sync] Strategy 2 (Regex) succeeded. Email:', client_email);
-      }
+    if (b64) {
+      // BASE64 → UTF-8 string → JSON.parse  (100% reliable on all platforms)
+      const decoded = Buffer.from(b64.trim(), 'base64').toString('utf8');
+      parsed = JSON.parse(decoded);
+      console.log('[Sync] Credentials loaded via GOOGLE_SERVICE_ACCOUNT_B64 ✓');
+    } else if (raw) {
+      // Direct JSON string (may have issues on some hosts)
+      parsed = JSON.parse(raw.trim());
+      console.log('[Sync] Credentials loaded via GOOGLE_SERVICE_ACCOUNT_JSON ✓');
+    } else {
+      console.warn('[Sync] No Google credentials env var found. Set GOOGLE_SERVICE_ACCOUNT_B64. Sync disabled.');
+      return;
     }
 
+    const { client_email, private_key } = parsed;
     if (!client_email || !private_key) {
-      throw new Error('Could not extract client_email or private_key. Check GOOGLE_SERVICE_ACCOUNT_JSON format.');
-    }
-
-    // Ensure key has proper PEM newlines (safety net for any edge cases)
-    if (!private_key.includes('\n')) {
-      // Key has no real newlines at all - do manual reconstruction
-      let cleanKey = private_key
-        .replace(/-----BEGIN PRIVATE KEY-----/g, '')
-        .replace(/-----END PRIVATE KEY-----/g, '')
-        .replace(/\\n/g, '')
-        .replace(/\\/g, '')
-        .replace(/[\s\r\n"']/g, '');
-
-      const chunks = [];
-      for (let i = 0; i < cleanKey.length; i += 64) {
-        chunks.push(cleanKey.substring(i, i + 64));
-      }
-      private_key = `-----BEGIN PRIVATE KEY-----\n${chunks.join('\n')}\n-----END PRIVATE KEY-----\n`;
-      console.log('[Sync] Strategy 3 (Manual PEM reconstruction) used. Base64 length:', cleanKey.length);
+      throw new Error('JSON is missing client_email or private_key fields.');
     }
 
     credentials = { client_email, private_key };
-    console.log('[Sync] Credentials ready. Email:', client_email, '| Key length:', private_key.length);
+    console.log('[Sync] Google credentials ready. Email:', client_email);
   } catch (e) {
-    console.error('[Sync] Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON:', e.message);
+    console.error('[Sync] Failed to load Google credentials:', e.message);
     return;
   }
 
   const supabase = getSupabaseClient();
   if (!supabase) {
-    console.error('[Sync] Supabase environment variables missing. Background sync disabled.');
+    console.error('[Sync] Supabase environment variables missing. Sync disabled.');
     return;
   }
 
-  // Set up Google Auth Client
   const authClient = new google.auth.GoogleAuth({
     credentials,
     scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
   });
 
   const SHEETS_TO_SYNC = [
-    {
-      sheetId: '1m82l8vZwmFo-9qt71Vw7av46ai4Jy-HulAOt_MPNQM4',
-      tabName: 'Wesbite lead',
-      type: 'website'
-    },
-    {
-      sheetId: '1P2fexhvaJgKjZxAmkJ3vUCvOLAToWIESaXw9ye_ido',
-      tabName: 'AYKA Life (v1)',
-      type: 'meta'
-    }
+    { sheetId: '1m82l8vZwmFo-9qt71Vw7av46ai4Jy-HulAOt_MPNQM4', tabName: 'Wesbite lead',   type: 'website' },
+    { sheetId: '1P2fexhvaJgKjZxAmkJ3vUCvOLAToWIESaXw9ye_ido',  tabName: 'AYKA Life (v1)', type: 'meta'    },
   ];
 
-  console.log('[Sync] Background sheets sync worker started (interval: 15 seconds)');
+  console.log('[Sync] Background sync started — polling every 15 seconds');
 
   syncInterval = setInterval(async () => {
     try {
@@ -387,11 +293,9 @@ function startBackgroundSync() {
         await syncSheet(authClient, supabase, sheetConfig);
       }
     } catch (e) {
-      console.error('[Sync] Fatal error in sync interval loop:', e.message);
+      console.error('[Sync] Fatal error in sync loop:', e.message);
     }
-  }, 15000); // 15 seconds
+  }, 15000);
 }
 
-module.exports = {
-  startBackgroundSync
-};
+module.exports = { startBackgroundSync };
