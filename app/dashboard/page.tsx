@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Search, Plus, LogOut, Edit2, Trash2, Filter, RefreshCw, ChevronLeft, ChevronRight, Clock3, LayoutDashboard, Users, FolderKanban, Upload, Flame, Zap, Snowflake, ClipboardList, Sparkles, Link2 } from 'lucide-react'
+import { Search, Plus, LogOut, Edit2, Trash2, Filter, RefreshCw, ChevronLeft, ChevronRight, Clock3, LayoutDashboard, Users, FolderKanban, Upload, Flame, Zap, Snowflake, ClipboardList, Sparkles, Link2, Mail } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { Lead, Profile } from '@/types/lead'
 import { QualityBadge, FmBadge, FollowUpBadge, LeadStatusDot } from '@/components/Badges'
@@ -13,6 +13,7 @@ import UserActivityPanel from '@/components/UserActivityPanel'
 import NewLeadsPanel from '@/components/NewLeadsPanel'
 import SyncSourcesPanel from '@/components/SyncSourcesPanel'
 import { UpcomingFollowUps } from '@/components/UpcomingFollowUps'
+import MailSection from '@/components/MailSection'
 import { logUserActivity } from '@/utils/activity-log'
 import { useRouter } from 'next/navigation'
 
@@ -63,9 +64,10 @@ export default function Dashboard() {
   const [userLeadStats, setUserLeadStats] = useState<Record<string, { total: number; statusCounts: Record<string, number> }>>({})
   const [stats, setStats] = useState({ total: 0, hot: 0, warm: 0, cold: 0, today: 0 })
   const [stageStats, setStageStats] = useState<Record<string, number>>({})
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'team' | 'leads' | 'sync'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'team' | 'leads' | 'sync' | 'mail'>('dashboard')
   const [showImport, setShowImport] = useState(false)
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([])
+  const [mailLead, setMailLead] = useState<Lead | null>(null)
   const [sortDateAsc, setSortDateAsc] = useState(false) // false = newest first (default)
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list')
   const [dragLeadId, setDragLeadId] = useState<string | null>(null)
@@ -400,6 +402,7 @@ export default function Dashboard() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', flex: 1, padding: '0 10px' }}>
           {[
             { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null, visible: true },
+            { id: 'mail', label: 'Mail', icon: Mail, badge: null, visible: true },
             { id: 'team', label: 'Team', icon: Users, badge: profiles.length > 0 ? profiles.length : null, visible: currentProfile?.role === 'admin' },
             { id: 'leads', label: 'Leads', icon: FolderKanban, badge: stats.total > 0 ? stats.total : null, visible: true },
             { id: 'sync', label: 'Sync Sources', icon: Link2, badge: null, visible: currentProfile?.role === 'admin' },
@@ -586,6 +589,13 @@ export default function Dashboard() {
               </div>
               <SyncSourcesPanel />
             </div>
+          )}
+
+          {activeTab === 'mail' && (
+            <MailSection
+              currentProfile={currentProfile}
+              initialLead={mailLead}
+            />
           )}
 
           {activeTab === 'team' && (
@@ -848,6 +858,13 @@ export default function Dashboard() {
                                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'none' }}>
                                   <Clock3 size={13} />
                                 </button>
+                                {lead.email && (
+                                  <button title="Send Email" onClick={() => { setMailLead(lead); setActiveTab('mail') }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '3px', borderRadius: '5px', transition: 'all 0.1s' }}
+                                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#a78bfa'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(167,139,250,0.1)' }}
+                                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'none' }}>
+                                    <Mail size={13} />
+                                  </button>
+                                )}
                                 <button onClick={() => { setEditLead(lead); setShowForm(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '3px', borderRadius: '5px', transition: 'all 0.1s' }}
                                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--accent)'; (e.currentTarget as HTMLButtonElement).style.background = 'var(--accent-muted)' }}
                                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'none' }}>
