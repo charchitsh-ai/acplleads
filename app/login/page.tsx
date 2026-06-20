@@ -52,14 +52,17 @@ export default function LoginPage() {
       <div style={{ width: '100%', maxWidth: '380px' }}>
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{
-            width: '48px', height: '48px',
-            background: 'var(--accent)',
-            borderRadius: '12px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 12px',
-            fontSize: '22px', fontWeight: '800', color: 'white'
-          }}>A</div>
+          <img
+            src="/logo.jpg"
+            alt="AYKA Logo"
+            style={{
+              width: '48px',
+              height: '48px',
+              borderRadius: '12px',
+              objectFit: 'cover',
+              margin: '0 auto 12px'
+            }}
+          />
           <h1 style={{ fontSize: '22px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>AYKA CRM</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: '4px' }}>
             {mode === 'login' ? 'Sign in to your account' : 'Create your account'}

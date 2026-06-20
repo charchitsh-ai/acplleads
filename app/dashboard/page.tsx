@@ -377,14 +377,16 @@ export default function Dashboard() {
         `}</style>
         {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '28px', padding: '24px 20px', borderBottom: '1px solid var(--border)' }}>
-          <div style={{
-            width: '38px', height: '38px',
-            background: 'linear-gradient(135deg, var(--accent), #7fa01a)',
-            borderRadius: '10px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontWeight: '900', fontSize: '18px', color: 'white',
-            boxShadow: '0 2px 8px rgba(163,192,38,0.4)'
-          }}>A</div>
+          <img
+            src="/logo.jpg"
+            alt="AYKA Logo"
+            style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '10px',
+              objectFit: 'cover'
+            }}
+          />
           <div>
             <div style={{ fontWeight: '800', fontSize: '15px', color: 'var(--text-primary)', letterSpacing: '-0.3px' }}>AYKA CRM</div>
             <div style={{ color: 'var(--accent)', fontSize: '10.5px', fontWeight: '600', letterSpacing: '0.5px', textTransform: 'uppercase' }}>Lead Manager</div>
