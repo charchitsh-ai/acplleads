@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
           assigned_to:       l.assigned_to || 'Unassigned',
           fm_type:           normFm(l.fm_type) ?? undefined,
           lead_quality:      normQuality(l.lead_quality) ?? '#Cold_Lead',
-          follow_up_status:  '#New_Lead',
+          follow_up_status:  l.follow_up_status || '#First_Call',
           last_remark:       l.remark || l.notes || l.message || null,
           lead_date:         parsedCreatedAt ? parsedCreatedAt.split('T')[0] : new Date().toISOString().split('T')[0],
         }
