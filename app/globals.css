@@ -163,4 +163,39 @@ select.crm-input option { background: var(--surface-2); }
     max-height: 90vh;
     overflow-y: auto;
   }
+  
+  .grid-mail {
+    grid-template-columns: 1fr !important;
+  }
+  
+  .grid-mail-reverse {
+    display: flex !important;
+    flex-direction: column-reverse !important;
+  }
+}
+
+.grid-mail {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.grid-mail-reverse {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 24px;
+  align-items: start;
+}
+
+.grid-2-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .grid-2-cols {
+    grid-template-columns: 1fr !important;
+  }
 }

@@ -230,7 +230,7 @@ export default function MailSection({ currentProfile, initialLead }: MailSection
       {viewMode === 'settings' ? (
         <MailConfig />
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '20px', alignItems: 'start' }}>
+        <div className="grid-mail">
 
         {/* ── LEFT: Sent History ── */}
         <div className="crm-card" style={{ padding: '16px' }}>

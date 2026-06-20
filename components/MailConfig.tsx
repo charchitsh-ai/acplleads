@@ -174,7 +174,7 @@ export default function MailConfig() {
               </select>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div className="grid-2-cols">
               <div>
                 <label className="crm-label">From Name</label>
                 <input className="crm-input" value={config.from_name || ''} onChange={e => setConfig({...config, from_name: e.target.value})} placeholder="AYKA Alliance" />
@@ -191,7 +191,7 @@ export default function MailConfig() {
                   <label className="crm-label">SMTP Host</label>
                   <input className="crm-input" value={config.smtp_host || ''} onChange={e => setConfig({...config, smtp_host: e.target.value})} placeholder="smtp.gmail.com" />
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div className="grid-2-cols">
                   <div>
                     <label className="crm-label">SMTP Port</label>
                     <input className="crm-input" type="number" value={config.smtp_port || 587} onChange={e => setConfig({...config, smtp_port: parseInt(e.target.value)})} />
@@ -230,7 +230,7 @@ export default function MailConfig() {
 
       {/* Templates Manager */}
       {activeTab === 'templates' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+        <div className="grid-mail">
           
           {/* List */}
           <div className="crm-card" style={{ padding: '20px' }}>
