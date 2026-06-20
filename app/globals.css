@@ -1,16 +1,29 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #f8f9fb;
-  --surface: #ffffff;
-  --surface-2: #f1f3f9;
-  --border: #e2e8f0;
-  --accent: #a3c026;
-  --accent-hover: #90ad1c;
-  --accent-muted: rgba(163, 192, 38, 0.15);
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
+  --bg: #F0F4F8; /* Light background */
+  --surface: #ffffff; /* White cards */
+  --surface-2: #F9FAFB; /* Slightly off-white for inputs/secondary cards */
+  --border: #E5E7EB; /* Light gray border */
+  
+  --primary: #2A4638; /* Dark green */
+  --primary-hover: #1e3328;
+  
+  --secondary: #B8C23A; /* Lime green */
+  --secondary-hover: #a5ae34;
+  --secondary-muted: rgba(184, 194, 58, 0.15);
+  
+  --neutral: #6B7280; /* Gray for tertiary/neutral */
+  
+  /* Retaining original accent variables mapped to secondary for compatibility */
+  --accent: var(--secondary);
+  --accent-hover: var(--secondary-hover);
+  --accent-muted: var(--secondary-muted);
+  
+  --text-primary: #111827; /* Dark text */
+  --text-secondary: #4B5563; /* Medium text */
+  --text-muted: #9CA3AF; /* Light text */
+  
   --hot: #ff4757;
   --warm: #ffa502;
   --cold: #1e90ff;
@@ -24,8 +37,12 @@
 body {
   background-color: var(--bg);
   color: var(--text-primary);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-public-sans), -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -117,3 +134,33 @@ select.crm-input option { background: var(--surface-2); }
 .badge-low { background: rgba(116,125,140,0.15); color: #a4abc0; }
 .badge-fm { background: var(--accent-muted); color: var(--accent); }
 .badge-followup { background: rgba(46,213,115,0.15); color: #2ed573; }
+
+/* Responsive Utilities */
+.mobile-only { display: none; }
+.mobile-only-flex { display: none; }
+.desktop-only { display: block; }
+
+@media (max-width: 768px) {
+  .mobile-only { display: block !important; }
+  .mobile-only-flex { display: flex !important; }
+  .desktop-only { display: none !important; }
+  
+  .crm-card { padding: 16px; }
+  .main-content { padding: 10px !important; }
+  
+  /* Make table scrollable horizontally */
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+  }
+  
+  /* Adjust modal widths for mobile */
+  .modal-content {
+    width: 95% !important;
+    max-width: none !important;
+    margin: 10px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+}

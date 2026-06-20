@@ -1,14 +1,19 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Globe, Share2, Check, AlertCircle, Copy, ExternalLink, Zap } from 'lucide-react'
 
 export default function SyncSourcesPanel() {
   const [testing, setTesting] = useState<string | null>(null)
   const [results, setResults] = useState<Record<string, 'ok' | 'error'>>({})
   const [copied, setCopied] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
-  const endpointUrl = typeof window !== 'undefined'
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const endpointUrl = mounted && typeof window !== 'undefined'
     ? `${window.location.origin}/api/leads/capture`
     : '/api/leads/capture'
 

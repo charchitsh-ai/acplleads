@@ -12,10 +12,29 @@ import TeamManager from '@/components/TeamManager'
 import UserActivityPanel from '@/components/UserActivityPanel'
 import NewLeadsPanel from '@/components/NewLeadsPanel'
 import SyncSourcesPanel from '@/components/SyncSourcesPanel'
+import { UpcomingFollowUps } from '@/components/UpcomingFollowUps'
 import { logUserActivity } from '@/utils/activity-log'
 import { useRouter } from 'next/navigation'
 
 const PAGE_SIZE = 1000
+
+export const KANBAN_STAGES = [
+  { title: 'New Lead', status: '#New_Lead', color: '#a3c026' },
+  { title: 'First Call', status: '#First_Call', color: '#1e90ff' },
+  { title: 'Follow-up 1', status: '#Followup_1', color: '#ffa500' },
+  { title: 'Follow-up 2', status: '#Followup_2', color: '#ff6348' },
+  { title: 'Meeting Scheduled', status: '#Meeting_Scheduled', color: '#3742fa' },
+  { title: 'Virtual Meet', status: '#Virtual_Meet', color: '#7d5fff' },
+  { title: 'Followup / Negotiate', status: '#Followup_Negotiate', color: '#ff9f43' },
+  { title: 'In Person Meet', status: '#In_Person_Meet', color: '#2ed573' },
+  { title: 'Followup Post In-Person', status: '#Followup_Post_Inperson', color: '#26de81' },
+  { title: 'MOU', status: '#MOU', color: '#fd9644' },
+  { title: 'Agreement', status: '#Agreement', color: '#20bf6b' },
+  { title: 'Induction', status: '#Induction', color: '#45aaf2' },
+  { title: 'Proposal Sent', status: '#Proposal_Sent', color: '#a55eea' },
+  { title: 'Contacted', status: '#Contacted', color: '#ffa502' },
+  { title: 'Lost / Closed', status: '#Lost', color: '#a4b0be' },
+]
 
 function formatLastActivity(value?: string) {
   if (!value) return ''
@@ -33,6 +52,7 @@ export default function Dashboard() {
   const [filterQuality, setFilterQuality] = useState('')
   const [filterFm, setFilterFm] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+  const [filterMonth, setFilterMonth] = useState('')
   const [page, setPage] = useState(0)
   const [showForm, setShowForm] = useState(false)
   const [editLead, setEditLead] = useState<Lead | null>(null)
@@ -42,10 +62,15 @@ export default function Dashboard() {
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null)
   const [userLeadStats, setUserLeadStats] = useState<Record<string, { total: number; statusCounts: Record<string, number> }>>({})
   const [stats, setStats] = useState({ total: 0, hot: 0, warm: 0, cold: 0, today: 0 })
+  const [stageStats, setStageStats] = useState<Record<string, number>>({})
   const [activeTab, setActiveTab] = useState<'dashboard' | 'team' | 'leads' | 'sync'>('dashboard')
   const [showImport, setShowImport] = useState(false)
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([])
   const [sortDateAsc, setSortDateAsc] = useState(false) // false = newest first (default)
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list')
+  const [dragLeadId, setDragLeadId] = useState<string | null>(null)
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null)
+  const [showMobileMenu, setShowMobileMenu] = useState(false)
   const supabase = createClient()
   const router = useRouter()
 
@@ -69,6 +94,12 @@ export default function Dashboard() {
       if (filterQuality) query = query.eq('lead_quality', filterQuality)
       if (filterFm) query = query.eq('fm_type', filterFm)
       if (filterStatus) query = query.eq('follow_up_status', filterStatus)
+      if (filterMonth) {
+        const start = new Date(`${filterMonth}-01T00:00:00Z`)
+        const end = new Date(start)
+        end.setMonth(end.getMonth() + 1)
+        query = query.gte('created_at', start.toISOString()).lt('created_at', end.toISOString())
+      }
 
       const { data, count, error } = await query
       if (error) throw error
@@ -77,7 +108,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false)
     }
-  }, [search, filterQuality, filterFm, filterStatus, sortDateAsc, supabase])
+  }, [search, filterQuality, filterFm, filterStatus, filterMonth, sortDateAsc, supabase])
 
   const fetchStats = useCallback(async () => {
     const { count: total } = await supabase.from('leads').select('*', { count: 'exact', head: true })
@@ -87,6 +118,16 @@ export default function Dashboard() {
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
     const { count: today } = await supabase.from('leads').select('*', { count: 'exact', head: true }).gte('created_at', todayStart.toISOString())
     setStats({ total: total || 0, hot: hot || 0, warm: warm || 0, cold: cold || 0, today: today || 0 })
+
+    const { data: stages } = await supabase.from('leads').select('follow_up_status')
+    if (stages) {
+      const counts: Record<string, number> = {}
+      stages.forEach(l => {
+        const s = l.follow_up_status || '#First_Call'
+        counts[s] = (counts[s] || 0) + 1
+      })
+      setStageStats(counts)
+    }
   }, [supabase])
 
   const fetchProfiles = useCallback(async () => {
@@ -276,10 +317,43 @@ export default function Dashboard() {
     }
   }
 
-  const totalPages = Math.ceil(total / PAGE_SIZE)
+  const handleKanbanDrop = async (newStatus: string) => {
+    if (!dragLeadId || !newStatus) return
+    const lead = leads.find(l => l.id === dragLeadId)
+    if (!lead || lead.follow_up_status === newStatus) return
+    // Optimistic update
+    setLeads(prev => prev.map(l => l.id === dragLeadId ? { ...l, follow_up_status: newStatus as Lead['follow_up_status'] } : l))
+    const { error } = await supabase
+      .from('leads')
+      .update({ follow_up_status: newStatus, last_activity: new Date().toISOString() })
+      .eq('id', dragLeadId)
+    if (error) {
+      // Revert on error
+      fetchLeads()
+      alert('Failed to move lead: ' + error.message)
+    } else {
+      await logUserActivity(supabase, {
+        activity_type: 'lead_updated',
+        lead_id: dragLeadId,
+        lead_name: lead.name,
+        detail: `Moved "${lead.name}" to ${newStatus.replace('#', '').replace(/_/g, ' ')}`
+      })
+    }
+    setDragLeadId(null)
+    setDragOverCol(null)
+  }
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
+      {/* Mobile Menu Overlay */}
+      {showMobileMenu && (
+        <div 
+          className="mobile-only"
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 40 }}
+          onClick={() => setShowMobileMenu(false)}
+        />
+      )}
+
       {/* Sidebar Drawer */}
       <div style={{
         width: '260px',
@@ -291,11 +365,18 @@ export default function Dashboard() {
         top: 0,
         bottom: 0,
         left: 0,
-        zIndex: 40,
-        padding: '20px 14px'
-      }}>
+        zIndex: 50,
+        transform: showMobileMenu ? 'translateX(0)' : 'translateX(-100%)',
+        transition: 'transform 0.3s ease-in-out',
+      }} className="mobile-sidebar desktop-sidebar">
+        <style>{`
+          @media (min-width: 769px) {
+            .desktop-sidebar { transform: translateX(0) !important; }
+            .main-content { margin-left: 260px !important; }
+          }
+        `}</style>
         {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '28px', padding: '4px 8px 16px', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '28px', padding: '24px 20px', borderBottom: '1px solid var(--border)' }}>
           <div style={{
             width: '38px', height: '38px',
             background: 'linear-gradient(135deg, var(--accent), #7fa01a)',
@@ -314,7 +395,7 @@ export default function Dashboard() {
         <div style={{ fontSize: '10px', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '1px', textTransform: 'uppercase', paddingLeft: '14px', marginBottom: '6px' }}>MENU</div>
 
         {/* Navigation Tabs */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', flex: 1 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', flex: 1, padding: '0 10px' }}>
           {[
             { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: null, visible: true },
             { id: 'team', label: 'Team', icon: Users, badge: profiles.length > 0 ? profiles.length : null, visible: currentProfile?.role === 'admin' },
@@ -326,7 +407,7 @@ export default function Dashboard() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => { setActiveTab(tab.id as any); setShowMobileMenu(false) }}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -343,18 +424,6 @@ export default function Dashboard() {
                   width: '100%',
                   transition: 'all 0.15s ease',
                   borderLeft: isActive ? '3px solid var(--accent)' : '3px solid transparent',
-                }}
-                onMouseEnter={e => {
-                  if (!isActive) {
-                    e.currentTarget.style.background = 'var(--surface-2)'
-                    e.currentTarget.style.color = 'var(--text-primary)'
-                  }
-                }}
-                onMouseLeave={e => {
-                  if (!isActive) {
-                    e.currentTarget.style.background = 'transparent'
-                    e.currentTarget.style.color = 'var(--text-secondary)'
-                  }
                 }}
               >
                 <Icon size={17} />
@@ -377,7 +446,7 @@ export default function Dashboard() {
         </div>
 
         {/* Bottom Profile / Logout */}
-        <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div style={{ borderTop: '1px solid var(--border)', padding: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {currentProfile && (
             <div style={{
               display: 'flex', alignItems: 'center', gap: '10px',
@@ -418,9 +487,16 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div style={{ marginLeft: '260px', flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        <div style={{ padding: '24px', width: '100%', margin: '0' }}>
+      {/* Main Content */}
+      <div className="main-content" style={{ flex: 1, padding: '20px', marginLeft: 0, transition: 'margin-left 0.3s' }}>
+        
+        {/* Mobile Header Toggle */}
+        <div className="mobile-only-flex" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', background: 'var(--surface)', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border)' }}>
+          <div style={{ fontWeight: '700', fontSize: '18px', color: 'var(--text-primary)' }}>AYKA CRM</div>
+          <button onClick={() => setShowMobileMenu(true)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', padding: 0, color: 'var(--text-primary)' }}>☰</button>
+        </div>
+
+        <div style={{ width: '100%', margin: '0 auto' }}>
           {activeTab === 'dashboard' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
               {/* Header row */}
@@ -463,20 +539,40 @@ export default function Dashboard() {
                 ))}
               </div>
 
+              {/* Kanban Stage Grid */}
+              <div style={{ marginTop: '8px' }}>
+                <h3 style={{ fontSize: '15px', color: 'var(--text-primary)', marginBottom: '12px' }}>Pipeline Stages</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
+                  {KANBAN_STAGES.map(stage => {
+                    const count = stageStats[stage.status] || 0
+                    return (
+                      <div key={stage.status} className="crm-card" style={{ padding: '12px 14px', borderLeft: `3px solid ${stage.color}` }}>
+                        <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)', lineHeight: 1 }}>{count}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '6px', fontWeight: 600 }}>{stage.title}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
               {/* Activity + New Leads panels */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px', alignItems: 'start' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', alignItems: 'start' }}>
+                <UpcomingFollowUps 
+                  currentProfile={currentProfile} 
+                  onViewLead={(lead: Lead) => {
+                    setEditLead(lead)
+                    setShowForm(true)
+                  }}
+                />
                 <UserActivityPanel currentProfile={currentProfile} />
                 <NewLeadsPanel
                   currentProfile={currentProfile}
-                  onViewLead={(lead) => {
+                  onViewLead={(lead: Lead) => {
                     setEditLead(lead)
                     setShowForm(true)
                   }}
                 />
               </div>
-
-              {/* Sync Sources */}
-              <SyncSourcesPanel />
             </div>
           )}
 
@@ -501,25 +597,28 @@ export default function Dashboard() {
           )}
 
           {activeTab === 'leads' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
                 <div>
-                  <h1 style={{ margin: 0, fontSize: '22px', fontWeight: '700', color: 'var(--text-primary)' }}>Leads Management</h1>
-                  <p style={{ margin: '4px 0 0', fontSize: '13.5px', color: 'var(--text-muted)' }}>Add, edit, filter, search, and assign CRM leads.</p>
+                  <h1 style={{ margin: '0 0 4px', fontSize: '24px', color: 'var(--text-primary)' }}>Leads Management</h1>
+                  <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '14px' }}>Add, edit, filter, search, and assign CRM leads.</p>
                 </div>
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                  <button className="btn-ghost" onClick={() => setShowImport(true)} style={{ padding: '10px 16px' }}>
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
+                    <button onClick={() => setViewMode('list')} style={{ padding: '6px 12px', fontSize: '13px', fontWeight: '600', border: 'none', cursor: 'pointer', background: viewMode === 'list' ? 'var(--surface-2)' : 'transparent', color: viewMode === 'list' ? 'var(--text-primary)' : 'var(--text-secondary)' }}>☰ List</button>
+                    <button onClick={() => setViewMode('kanban')} style={{ padding: '6px 12px', fontSize: '13px', fontWeight: '600', border: 'none', cursor: 'pointer', borderLeft: '1px solid var(--border)', background: viewMode === 'kanban' ? 'var(--surface-2)' : 'transparent', color: viewMode === 'kanban' ? 'var(--text-primary)' : 'var(--text-secondary)' }}>⊞ Kanban</button>
+                  </div>
+                  <button className="btn-ghost" onClick={() => setShowImport(true)}>
                     <Upload size={16} /> Import CSV
                   </button>
-                  <button className="btn-primary" onClick={() => { setEditLead(null); setShowForm(true) }} style={{ padding: '10px 16px' }}>
-                    <Plus size={16} /> Add Lead
+                  <button className="btn-primary" onClick={() => { setEditLead(null); setShowForm(true) }}>
+                    + Add Lead
                   </button>
                 </div>
               </div>
 
-              {/* Controls */}
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-                {/* Search */}
+              {/* Filters */}
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
                 <div style={{ position: 'relative', flex: 1, minWidth: '220px', maxWidth: '320px' }}>
                   <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                   <input
@@ -530,12 +629,6 @@ export default function Dashboard() {
                     onChange={e => setSearch(e.target.value)}
                   />
                 </div>
-
-                {/* Filters */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-muted)', fontSize: '13px' }}>
-                  <Filter size={13} />
-                </div>
-
                 <select className="crm-input" style={{ width: 'auto', minWidth: '130px' }} value={filterQuality} onChange={e => setFilterQuality(e.target.value)}>
                   <option value="">All Quality</option>
                   <option value="#Hot_Lead">Hot Lead</option>
@@ -543,7 +636,17 @@ export default function Dashboard() {
                   <option value="#Cold_Lead">Cold Lead</option>
                   <option value="#Low_Potential">Low Potential</option>
                 </select>
-
+                <select className="crm-input" style={{ width: 'auto', minWidth: '110px' }} value={filterMonth} onChange={e => setFilterMonth(e.target.value)}>
+                  <option value="">All Months</option>
+                  {Array.from({ length: 12 }).map((_, i) => {
+                    const d = new Date()
+                    d.setDate(1)
+                    d.setMonth(d.getMonth() - i)
+                    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+                    const label = new Intl.DateTimeFormat('en-IN', { month: 'short', year: 'numeric' }).format(d)
+                    return <option key={value} value={value}>{label}</option>
+                  })}
+                </select>
                 <select className="crm-input" style={{ width: 'auto', minWidth: '110px' }} value={filterFm} onChange={e => setFilterFm(e.target.value)}>
                   <option value="">All FM Type</option>
                   <option value="CF">CF - City</option>
@@ -552,7 +655,6 @@ export default function Dashboard() {
                   <option value="SF">SF - State</option>
                   <option value="Collab">Collab</option>
                 </select>
-
                 <select className="crm-input" style={{ width: 'auto', minWidth: '140px' }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
                   <option value="">All Status</option>
                   <option value="#New_Lead">New Lead</option>
@@ -560,11 +662,17 @@ export default function Dashboard() {
                   <option value="#Followup_1">Follow-up 1</option>
                   <option value="#Followup_2">Follow-up 2</option>
                   <option value="#Meeting_Scheduled">Meeting Scheduled</option>
+                  <option value="#Virtual_Meet">Virtual Meet</option>
+                  <option value="#Followup_Negotiate">Followup / Negotiate</option>
+                  <option value="#In_Person_Meet">In Person Meet</option>
+                  <option value="#Followup_Post_Inperson">Followup Post In-Person</option>
+                  <option value="#MOU">MOU</option>
+                  <option value="#Agreement">Agreement</option>
+                  <option value="#Induction">Induction</option>
                   <option value="#Proposal_Sent">Proposal Sent</option>
                   <option value="#Contacted">Contacted</option>
                   <option value="#Lost">Lost</option>
                 </select>
-
                 <button className="btn-ghost" onClick={fetchLeads} style={{ padding: '8px 10px' }}>
                   <RefreshCw size={14} />
                 </button>
@@ -573,15 +681,9 @@ export default function Dashboard() {
               {/* Bulk Actions Banner */}
               {selectedLeadIds.length > 0 && (
                 <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  background: 'var(--accent-muted)',
-                  border: '1px solid var(--accent)',
-                  borderRadius: '8px',
-                  padding: '10px 16px',
-                  gap: '12px',
-                  flexWrap: 'wrap'
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  background: 'var(--accent-muted)', border: '1px solid var(--accent)',
+                  borderRadius: '8px', padding: '10px 16px', gap: '12px', flexWrap: 'wrap', marginBottom: '20px'
                 }}>
                   <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--accent)' }}>
                     {selectedLeadIds.length} leads selected
@@ -592,274 +694,284 @@ export default function Dashboard() {
                       className="crm-input"
                       style={{ width: 'auto', minWidth: '150px', padding: '6px 12px' }}
                       value=""
-                      onChange={e => {
-                        if (e.target.value) {
-                          handleBulkAssign(e.target.value)
-                        }
-                      }}
+                      onChange={e => { if (e.target.value) handleBulkAssign(e.target.value) }}
                     >
                       <option value="" disabled>Select Team Member...</option>
                       <option value="unassign">Unassign</option>
                       {profiles.map(p => (
-                        <option key={p.id} value={p.id}>
-                          {p.display_name}
-                        </option>
+                        <option key={p.id} value={p.id}>{p.display_name}</option>
                       ))}
                     </select>
-                    <button
-                      className="btn-ghost"
-                      style={{ padding: '6px 12px', fontSize: '13px' }}
-                      onClick={() => setSelectedLeadIds([])}
-                    >
+                    <button className="btn-ghost" style={{ padding: '6px 12px', fontSize: '13px' }} onClick={() => setSelectedLeadIds([])}>
                       Clear Selection
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* Table */}
-              <div className="crm-card" style={{ padding: 0, overflow: 'hidden' }}>
-                <div style={{ overflowX: 'auto', width: '100%' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                        {[
-                          { label: '', width: '45px' },
-                          { label: 'S.No', width: '55px' },
-                          { label: 'Name', width: '180px' },
-                          { label: 'Contact', width: '115px' },
-                          { label: 'Location', width: '130px' },
-                          { label: 'Assigned', width: '145px' },
-                          { label: 'FM Type', width: '85px' },
-                          { label: 'Quality', width: '85px' },
-                          { label: 'Follow-up', width: '105px' },
-                          { label: 'Date', width: '115px' },
-                          { label: 'Remark', width: 'auto' },
-                          { label: 'Actions', width: '95px' }
-                        ].map((col, idx) => (
-                          <th key={col.label || idx} style={{
-                            padding: '10px 12px',
-                            textAlign: 'left',
-                            fontSize: '11px',
-                            fontWeight: '600',
-                            color: 'var(--text-muted)',
-                            letterSpacing: '0.5px',
-                            textTransform: 'uppercase',
-                            whiteSpace: 'nowrap',
-                            width: col.width
-                          }}>
-                            {idx === 0 ? (
-                              <input
-                                type="checkbox"
-                                style={{ accentColor: 'var(--accent)', cursor: 'pointer' }}
-                                checked={leads.length > 0 && selectedLeadIds.length === leads.length}
-                                onChange={e => {
-                                  if (e.target.checked) {
-                                    setSelectedLeadIds(leads.map(l => l.id))
-                                  } else {
-                                    setSelectedLeadIds([])
-                                  }
-                                }}
-                              />
-                            ) : col.label === 'Date' ? (
-                              <button
-                                onClick={() => setSortDateAsc(prev => !prev)}
-                                title={sortDateAsc ? 'Oldest first — click for Newest first' : 'Newest first — click for Oldest first'}
-                                style={{
-                                  display: 'flex', alignItems: 'center', gap: '4px',
-                                  background: 'none', border: 'none', cursor: 'pointer',
-                                  color: 'var(--accent)', fontSize: '11px',
-                                  fontWeight: '700', letterSpacing: '0.5px',
-                                  textTransform: 'uppercase', padding: 0
-                                }}
-                              >
-                                DATE
-                                <span style={{ fontSize: '13px', lineHeight: 1 }}>
-                                  {sortDateAsc ? '↑' : '↓'}
-                                </span>
-                              </button>
-                            ) : col.label}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {loading ? (
-                        <tr>
-                          <td colSpan={11} style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                            Loading leads...
-                          </td>
-                        </tr>
-                      ) : leads.length === 0 ? (
-                        <tr>
-                          <td colSpan={11} style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                            No leads found. Add your first lead!
-                          </td>
-                        </tr>
-                      ) : leads.map((lead, i) => (
-                        <tr key={lead.id} style={{
-                          borderBottom: '1px solid var(--border)',
-                          background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)',
-                          transition: 'background 0.1s'
-                        }}
-                          onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-2)')}
-                          onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)')}
-                        >
-                          <td style={{ padding: '8px 10px', width: '45px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <input
-                                type="checkbox"
-                                style={{ accentColor: 'var(--accent)', cursor: 'pointer' }}
-                                checked={selectedLeadIds.includes(lead.id)}
-                                onChange={e => {
-                                  if (e.target.checked) {
-                                    setSelectedLeadIds(prev => [...prev, lead.id])
-                                  } else {
-                                    setSelectedLeadIds(prev => prev.filter(id => id !== lead.id))
-                                  }
-                                }}
-                              />
-                              <LeadStatusDot lead={lead} />
-                            </div>
-                          </td>
-                          <td style={{ padding: '8px 10px', width: '55px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-                            {lead.s_no || '—'}
-                          </td>
-                          <td style={{ padding: '8px 10px', width: '180px', overflow: 'hidden' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                              <span style={{ fontWeight: '500', fontSize: '13.5px', color: 'var(--text-primary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '110px' }} title={lead.name}>
-                                {lead.name}
-                              </span>
-                              {lead.source && lead.source.includes(',') && (
-                                <span 
-                                  title={`Re-submitted via: ${lead.source}`}
+              {/* ── LIST VIEW ── */}
+              {viewMode === 'list' ? (
+                <div className="crm-card" style={{ padding: 0, overflow: 'hidden' }}>
+                  <div className="table-container" style={{ overflowX: 'auto', width: '100%' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', tableLayout: 'fixed', minWidth: '1000px' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                          {[
+                            { label: '', width: '4%' },
+                            { label: 'S.No', width: '5%' },
+                            { label: 'Name', width: '16%' },
+                            { label: 'Contact', width: '10%' },
+                            { label: 'Location', width: '12%' },
+                            { label: 'Assigned', width: '12%' },
+                            { label: 'FM Type', width: '7%' },
+                            { label: 'Quality', width: '7%' },
+                            { label: 'Follow-up', width: '9%' },
+                            { label: 'Date', width: '9%' },
+                            { label: 'Remark', width: '10%' },
+                            { label: 'Actions', width: '7%' }
+                          ].map((col, idx) => (
+                            <th key={col.label || idx} style={{
+                              padding: '10px 12px', textAlign: 'left', fontSize: '11px', fontWeight: '600',
+                              color: 'var(--text-muted)', letterSpacing: '0.5px', textTransform: 'uppercase',
+                              whiteSpace: 'nowrap', width: col.width
+                            }}>
+                              {idx === 0 ? (
+                                <input
+                                  type="checkbox"
+                                  style={{ accentColor: 'var(--accent)', cursor: 'pointer' }}
+                                  checked={leads.length > 0 && selectedLeadIds.length === leads.length}
+                                  onChange={e => {
+                                    if (e.target.checked) setSelectedLeadIds(leads.map(l => l.id))
+                                    else setSelectedLeadIds([])
+                                  }}
+                                />
+                              ) : col.label === 'Date' ? (
+                                <button
+                                  onClick={() => setSortDateAsc(prev => !prev)}
+                                  title={sortDateAsc ? 'Oldest first — click for Newest first' : 'Newest first — click for Oldest first'}
                                   style={{
-                                    fontSize: '9px',
-                                    background: 'rgba(255, 165, 2, 0.15)',
-                                    color: '#ffa502',
-                                    padding: '1px 5px',
-                                    borderRadius: '3px',
-                                    fontWeight: '700',
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '0.3px',
-                                    whiteSpace: 'nowrap'
+                                    display: 'flex', alignItems: 'center', gap: '4px',
+                                    background: 'none', border: 'none', cursor: 'pointer',
+                                    color: 'var(--accent)', fontSize: '11px', fontWeight: '700',
+                                    letterSpacing: '0.5px', textTransform: 'uppercase', padding: 0
                                   }}
                                 >
-                                  Re-submitted
-                                </span>
-                              )}
-                            </div>
-                            {lead.email && <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '1px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }} title={lead.email}>{lead.email}</div>}
-                          </td>
-                          <td style={{ padding: '8px 10px', width: '115px', whiteSpace: 'nowrap' }}>
-                            <span style={{ fontSize: '12.5px', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
-                              {lead.contact || '—'}
-                            </span>
-                          </td>
-                          <td style={{ padding: '8px 10px', width: '130px', fontSize: '12.5px', color: 'var(--text-secondary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }} title={[lead.city, lead.state].filter(Boolean).join(', ') || ''}>
-                            {[lead.city, lead.state].filter(Boolean).join(', ') || '—'}
-                          </td>
-                          <td style={{ padding: '8px 10px', width: '145px' }}>
-                            <select
-                              className="crm-input"
-                              style={{
-                                padding: '3px 6px',
-                                fontSize: '12px',
-                                border: '1px solid var(--border)',
-                                borderRadius: '5px',
-                                background: 'var(--surface)',
-                                color: 'var(--text-primary)',
-                                cursor: 'pointer',
-                                outline: 'none',
-                                width: '100%',
-                                minWidth: '110px'
-                              }}
-                              value={lead.assigned_user_id || ''}
-                              onChange={e => handleAssignInline(lead.id, lead.name, e.target.value)}
-                            >
-                              <option value="">Unassigned</option>
-                              {profiles.map(p => (
-                                <option key={p.id} value={p.id}>
-                                  {p.display_name}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td style={{ padding: '8px 10px', width: '85px' }}>
-                            <FmBadge fmType={lead.fm_type} />
-                          </td>
-                          <td style={{ padding: '8px 10px', width: '85px' }}>
-                            <QualityBadge quality={lead.lead_quality} />
-                          </td>
-                          <td style={{ padding: '8px 10px', width: '105px' }}>
-                            <FollowUpBadge status={lead.follow_up_status} />
-                          </td>
-                          <td style={{ padding: '8px 10px', width: '115px', whiteSpace: 'nowrap' }}>
-                            {lead.created_at && (
-                              <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
-                                {formatLastActivity(lead.created_at)}
-                              </div>
-                            )}
-                          </td>
-                          <td style={{ padding: '8px 10px', overflow: 'hidden' }}>
-                            <div style={{
-                              fontSize: '12px',
-                              color: 'var(--text-secondary)',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap'
-                            }} title={lead.last_remark || ''}>
-                              {lead.last_remark || '—'}
-                            </div>
-                          </td>
-                          <td style={{ padding: '8px 10px', width: '95px', whiteSpace: 'nowrap' }}>
-                            <div style={{ display: 'flex', gap: '4px' }}>
-                              <button
-                                title="Activity history"
-                                onClick={() => setActivityLead(lead)}
-                                style={{
-                                  background: 'none', border: 'none', cursor: 'pointer',
-                                  color: 'var(--text-muted)', padding: '3px',
-                                  borderRadius: '5px', transition: 'all 0.1s'
-                                }}
-                                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--success)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(46,213,115,0.1)' }}
-                                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'none' }}
-                              >
-                                <Clock3 size={13} />
-                              </button>
-                              <button
-                                onClick={() => { setEditLead(lead); setShowForm(true) }}
-                                style={{
-                                  background: 'none', border: 'none', cursor: 'pointer',
-                                  color: 'var(--text-muted)', padding: '3px',
-                                  borderRadius: '5px', transition: 'all 0.1s'
-                                }}
-                                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--accent)'; (e.currentTarget as HTMLButtonElement).style.background = 'var(--accent-muted)' }}
-                                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'none' }}
-                              >
-                                <Edit2 size={13} />
-                              </button>
-                              <button
-                                onClick={() => setDeleteId(lead.id)}
-                                style={{
-                                  background: 'none', border: 'none', cursor: 'pointer',
-                                  color: 'var(--text-muted)', padding: '3px',
-                                  borderRadius: '5px', transition: 'all 0.1s'
-                                }}
-                                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--danger)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,71,87,0.1)' }}
-                                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'none' }}
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            </div>
-                          </td>
+                                  DATE <span style={{ fontSize: '13px', lineHeight: 1 }}>{sortDateAsc ? '↑' : '↓'}</span>
+                                </button>
+                              ) : col.label}
+                            </th>
+                          ))}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {loading ? (
+                          <tr><td colSpan={12} style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading leads...</td></tr>
+                        ) : leads.length === 0 ? (
+                          <tr><td colSpan={12} style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)' }}>No leads found. Add your first lead!</td></tr>
+                        ) : leads.map((lead, i) => (
+                          <tr key={lead.id} style={{
+                            borderBottom: '1px solid var(--border)',
+                            background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)',
+                            transition: 'background 0.1s'
+                          }}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-2)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)')}
+                          >
+                            <td style={{ padding: '8px 10px', overflow: 'hidden' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <input
+                                  type="checkbox"
+                                  style={{ accentColor: 'var(--accent)', cursor: 'pointer', flexShrink: 0 }}
+                                  checked={selectedLeadIds.includes(lead.id)}
+                                  onChange={e => {
+                                    if (e.target.checked) setSelectedLeadIds(prev => [...prev, lead.id])
+                                    else setSelectedLeadIds(prev => prev.filter(id => id !== lead.id))
+                                  }}
+                                />
+                                <LeadStatusDot lead={lead} />
+                              </div>
+                            </td>
+                            <td style={{ padding: '8px 10px', fontSize: '13px', color: 'var(--text-secondary)', overflow: 'hidden' }}>
+                              {lead.s_no || '—'}
+                            </td>
+                            <td style={{ padding: '8px 10px', overflow: 'hidden' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                <span style={{ fontWeight: '500', fontSize: '13.5px', color: 'var(--text-primary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', width: '100%' }} title={lead.name}>
+                                  {lead.name}
+                                </span>
+                                {lead.source && lead.source.includes(',') && (
+                                  <span title={`Re-submitted via: ${lead.source}`} style={{ fontSize: '9px', background: 'rgba(255,165,2,0.15)', color: '#ffa502', padding: '1px 5px', borderRadius: '3px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap' }}>
+                                    Re-sub
+                                  </span>
+                                )}
+                              </div>
+                              {lead.email && <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '1px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }} title={lead.email}>{lead.email}</div>}
+                            </td>
+                            <td style={{ padding: '8px 10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              <span style={{ fontSize: '12.5px', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>{lead.contact || '—'}</span>
+                            </td>
+                            <td style={{ padding: '8px 10px', fontSize: '12.5px', color: 'var(--text-secondary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }} title={[lead.city, lead.state].filter(Boolean).join(', ') || ''}>
+                              {[lead.city, lead.state].filter(Boolean).join(', ') || '—'}
+                            </td>
+                            <td style={{ padding: '8px 10px', overflow: 'hidden' }}>
+                              <select
+                                className="crm-input"
+                                style={{ padding: '3px 6px', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '5px', background: 'var(--surface)', color: 'var(--text-primary)', cursor: 'pointer', outline: 'none', width: '100%', textOverflow: 'ellipsis' }}
+                                value={lead.assigned_user_id || ''}
+                                onChange={e => handleAssignInline(lead.id, lead.name, e.target.value)}
+                              >
+                                <option value="">Unassigned</option>
+                                {profiles.map(p => (
+                                  <option key={p.id} value={p.id}>{p.display_name}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td style={{ padding: '8px 10px', overflow: 'hidden', textOverflow: 'ellipsis' }}><FmBadge fmType={lead.fm_type} /></td>
+                            <td style={{ padding: '8px 10px', overflow: 'hidden', textOverflow: 'ellipsis' }}><QualityBadge quality={lead.lead_quality} /></td>
+                            <td style={{ padding: '8px 10px', overflow: 'hidden', textOverflow: 'ellipsis' }}><FollowUpBadge status={lead.follow_up_status} /></td>
+                            <td style={{ padding: '8px 10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {lead.created_at && (
+                                <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>{formatLastActivity(lead.created_at)}</div>
+                              )}
+                            </td>
+                            <td style={{ padding: '8px 10px', overflow: 'hidden' }}>
+                              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={lead.last_remark || ''}>
+                                {lead.last_remark || '—'}
+                              </div>
+                            </td>
+                            <td style={{ padding: '8px 10px', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                              <div style={{ display: 'flex', gap: '4px' }}>
+                                <button title="Activity history" onClick={() => setActivityLead(lead)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '3px', borderRadius: '5px', transition: 'all 0.1s' }}
+                                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--success)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(46,213,115,0.1)' }}
+                                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'none' }}>
+                                  <Clock3 size={13} />
+                                </button>
+                                <button onClick={() => { setEditLead(lead); setShowForm(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '3px', borderRadius: '5px', transition: 'all 0.1s' }}
+                                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--accent)'; (e.currentTarget as HTMLButtonElement).style.background = 'var(--accent-muted)' }}
+                                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'none' }}>
+                                  <Edit2 size={13} />
+                                </button>
+                                <button onClick={() => setDeleteId(lead.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '3px', borderRadius: '5px', transition: 'all 0.1s' }}
+                                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--danger)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,71,87,0.1)' }}
+                                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'none' }}>
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-
-              </div>
+              ) : (
+                /* ── KANBAN BOARD VIEW ── */
+                <div style={{ display: 'flex', gap: '16px', overflowX: 'auto', paddingBottom: '12px', alignItems: 'flex-start', minHeight: '600px' }}>
+                  {KANBAN_STAGES.map(column => {
+                    const colLeads = leads.filter(l => (l.follow_up_status || '#First_Call') === column.status)
+                    const isDropTarget = dragOverCol === column.status && dragLeadId !== null
+                    return (
+                      <div
+                        key={column.status}
+                        onDragOver={e => { e.preventDefault(); setDragOverCol(column.status) }}
+                        onDragLeave={() => setDragOverCol(null)}
+                        onDrop={() => handleKanbanDrop(column.status)}
+                        style={{
+                          flex: '0 0 270px',
+                          background: isDropTarget ? 'rgba(46,213,115,0.06)' : 'var(--surface)',
+                          borderRadius: '12px',
+                          border: isDropTarget ? '2px dashed #2ed573' : '1px solid var(--border)',
+                          padding: isDropTarget ? '11px' : '12px',
+                          display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '750px',
+                          transition: 'background 0.15s, border 0.15s'
+                        }}
+                      >
+                        {/* Column Header */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '8px', borderBottom: '2px solid ' + column.color }}>
+                          <span style={{ fontWeight: '700', fontSize: '13px', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '7px' }}>
+                            <span style={{ width: '9px', height: '9px', borderRadius: '50%', background: column.color, flexShrink: 0 }} />
+                            {column.title}
+                          </span>
+                          <span style={{ fontSize: '11px', background: 'var(--surface-2)', color: 'var(--text-muted)', padding: '2px 8px', borderRadius: '20px', fontWeight: '700' }}>
+                            {colLeads.length}
+                          </span>
+                        </div>
+                        {/* Drop hint */}
+                        {isDropTarget && (
+                          <div style={{ padding: '10px', textAlign: 'center', fontSize: '12px', fontWeight: '600', color: '#2ed573', border: '1px dashed #2ed573', borderRadius: '8px', background: 'rgba(46,213,115,0.08)' }}>
+                            Drop here → {column.title}
+                          </div>
+                        )}
+                        {/* Cards */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', paddingRight: '2px' }}>
+                          {colLeads.length === 0 && !isDropTarget ? (
+                            <div style={{ padding: '24px 12px', textAlign: 'center', fontSize: '12px', color: 'var(--text-muted)', border: '1px dashed var(--border)', borderRadius: '8px' }}>
+                              No leads — drag a card here
+                            </div>
+                          ) : colLeads.map(lead => {
+                            const isBeingDragged = dragLeadId === lead.id
+                            return (
+                            <div
+                              key={lead.id}
+                              draggable
+                              onDragStart={e => {
+                                setDragLeadId(lead.id)
+                                e.dataTransfer.effectAllowed = 'move'
+                                e.dataTransfer.setData('text/plain', lead.id)
+                              }}
+                              onDragEnd={() => { setDragLeadId(null); setDragOverCol(null) }}
+                              className="crm-card"
+                              style={{
+                                padding: '11px 12px',
+                                border: '1px solid var(--border)',
+                                borderRadius: '9px',
+                                background: isBeingDragged ? 'var(--accent-muted)' : 'var(--surface-2)',
+                                display: 'flex', flexDirection: 'column', gap: '7px',
+                                cursor: 'grab',
+                                opacity: isBeingDragged ? 0.5 : 1,
+                                transition: 'opacity 0.15s, box-shadow 0.12s, transform 0.12s',
+                                userSelect: 'none'
+                              }}
+                              onMouseEnter={e => { if (!isBeingDragged) { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(0,0,0,0.12)' } }}
+                              onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none' }}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)' }}>#{lead.s_no || '—'}</span>
+                                <QualityBadge quality={lead.lead_quality} />
+                              </div>
+                              <div style={{ fontWeight: '600', fontSize: '13.5px', color: 'var(--text-primary)', lineHeight: 1.3 }}>{lead.name}</div>
+                              <div style={{ fontSize: '12px', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>{lead.contact || 'No contact'}</div>
+                              {lead.city && (
+                                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                  📍 {[lead.city, lead.state].filter(Boolean).join(', ')}
+                                </div>
+                              )}
+                              {lead.fm_type && <FmBadge fmType={lead.fm_type} />}
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px', paddingTop: '8px', borderTop: '1px solid var(--border)' }}>
+                                <span style={{ fontSize: '11px', color: 'var(--text-muted)', maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  👤 <b>{lead.assigned_to || 'Unassigned'}</b>
+                                </span>
+                                <div style={{ display: 'flex', gap: '4px' }}>
+                                  <button title="Edit" onClick={e => { e.stopPropagation(); setEditLead(lead); setShowForm(true) }}
+                                    style={{ background: 'none', border: 'none', padding: '3px', color: 'var(--text-muted)', cursor: 'pointer', borderRadius: '4px' }}
+                                    onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.color = 'var(--accent)'}
+                                    onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'}
+                                  ><Edit2 size={12} /></button>
+                                  <button title="Activity" onClick={e => { e.stopPropagation(); setActivityLead(lead) }}
+                                    style={{ background: 'none', border: 'none', padding: '3px', color: 'var(--text-muted)', cursor: 'pointer', borderRadius: '4px' }}
+                                    onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.color = 'var(--success)'}
+                                    onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'}
+                                  ><Clock3 size={12} /></button>
+                                </div>
+                              </div>
+                            </div>
+                          )})}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>

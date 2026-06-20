@@ -15,7 +15,23 @@ interface LeadFormProps {
 
 const FM_TYPES: FmType[] = ['CF', 'MF', 'DF', 'SF', 'Collab']
 const LEAD_QUALITIES: LeadQuality[] = ['#Hot_Lead', '#Warm_Lead', '#Cold_Lead', '#Low_Potential']
-const FOLLOW_UP_STATUSES: FollowUpStatus[] = ['#First_Call', '#Followup_1', '#Followup_2', '#Meeting_Scheduled', '#Proposal_Sent', '#Contacted', '#Lost']
+const FOLLOW_UP_STATUSES: FollowUpStatus[] = [
+  '#New_Lead',
+  '#First_Call',
+  '#Followup_1',
+  '#Followup_2',
+  '#Meeting_Scheduled',
+  '#Virtual_Meet',
+  '#Followup_Negotiate',
+  '#In_Person_Meet',
+  '#Followup_Post_Inperson',
+  '#MOU',
+  '#Agreement',
+  '#Induction',
+  '#Proposal_Sent',
+  '#Contacted',
+  '#Lost',
+]
 const OBJECTION_TAGS: ObjectionTag[] = ['#Need_More_Time', '#ROI_Concern', '#Investment_Issue', '#Not_Interested', '#Discuss_With_Partner', '#Documents_Pending']
 const SOURCES = ['Facebook_Ads', 'Instagram_Ads', 'WhatsApp', 'Website', 'Referral', 'Other']
 
@@ -256,100 +272,106 @@ export default function LeadForm({ lead, profiles = [], onClose, onSaved }: Lead
         </div>
 
         {/* Form Body */}
-        <div style={{ overflow: 'auto', padding: '20px', flex: 1 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-            <div style={{ gridColumn: '1 / -1' }}>
-              <Field label="Name *">
-                <input className="crm-input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="Full name" />
+        <div style={{ overflow: 'auto', padding: '24px', flex: 1, background: 'var(--surface)' }}>
+          {/* Section: Basic Info */}
+          <div style={{ marginBottom: '24px' }}>
+            <h3 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px', borderBottom: '1px solid var(--border)', paddingBottom: '6px' }}>Basic Info</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <Field label="Name *">
+                  <input className="crm-input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="Full name" />
+                </Field>
+              </div>
+
+              <Field label="Contact">
+                <input className="crm-input" value={form.contact || ''} onChange={e => set('contact', e.target.value)} placeholder="91XXXXXXXXXX" />
+              </Field>
+
+              <Field label="Email">
+                <input className="crm-input" type="email" value={form.email || ''} onChange={e => set('email', e.target.value)} placeholder="email@example.com" />
               </Field>
             </div>
+          </div>
 
-            <Field label="Contact">
-              <input className="crm-input" value={form.contact || ''} onChange={e => set('contact', e.target.value)} placeholder="91XXXXXXXXXX" />
-            </Field>
+          {/* Section: Location & Work */}
+          <div style={{ marginBottom: '24px' }}>
+            <h3 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px', borderBottom: '1px solid var(--border)', paddingBottom: '6px' }}>Location & Work</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <Field label="City">
+                <input className="crm-input" value={form.city || ''} onChange={e => set('city', e.target.value)} placeholder="City" />
+              </Field>
 
-            <Field label="Email">
-              <input className="crm-input" type="email" value={form.email || ''} onChange={e => set('email', e.target.value)} placeholder="email@example.com" />
-            </Field>
+              <Field label="State">
+                <input className="crm-input" value={form.state || ''} onChange={e => set('state', e.target.value)} placeholder="State" />
+              </Field>
 
-            <Field label="City">
-              <input className="crm-input" value={form.city || ''} onChange={e => set('city', e.target.value)} placeholder="City" />
-            </Field>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <Field label="Occupation">
+                  <input className="crm-input" value={form.occupation || ''} onChange={e => set('occupation', e.target.value)} placeholder="Doctor, Businessman..." />
+                </Field>
+              </div>
+            </div>
+          </div>
 
-            <Field label="State">
-              <input className="crm-input" value={form.state || ''} onChange={e => set('state', e.target.value)} placeholder="State" />
-            </Field>
+          {/* Section: Pipeline Details */}
+          <div>
+            <h3 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px', borderBottom: '1px solid var(--border)', paddingBottom: '6px' }}>Pipeline Details</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <Field label="Lead Date">
+                <input className="crm-input" type="date" value={form.lead_date} onChange={e => set('lead_date', e.target.value)} />
+              </Field>
 
-            <Field label="Occupation">
-              <input className="crm-input" value={form.occupation || ''} onChange={e => set('occupation', e.target.value)} placeholder="Doctor, Businessman..." />
-            </Field>
+              <Field label="FM Type">
+                <select className="crm-input" value={form.fm_type || ''} onChange={e => set('fm_type', e.target.value)}>
+                  <option value="">Select...</option>
+                  {FM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </Field>
 
-            <Field label="Lead Date">
-              <input className="crm-input" type="date" value={form.lead_date || ''} onChange={e => set('lead_date', e.target.value)} />
-            </Field>
+              <Field label="Source">
+                <select className="crm-input" value={form.source || ''} onChange={e => set('source', e.target.value)}>
+                  {SOURCES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+                </select>
+              </Field>
 
-            <Field label="FM Type">
-              <select className="crm-input" value={form.fm_type || ''} onChange={e => set('fm_type', e.target.value)}>
-                <option value="">Select...</option>
-                {FM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </Field>
+              <Field label="Lead Quality">
+                <select className="crm-input" value={form.lead_quality || ''} onChange={e => set('lead_quality', e.target.value)}>
+                  <option value="">Select...</option>
+                  {LEAD_QUALITIES.map(q => <option key={q} value={q}>{q}</option>)}
+                </select>
+              </Field>
 
-            <Field label="Source">
-              <select className="crm-input" value={form.source || ''} onChange={e => set('source', e.target.value)}>
-                {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </Field>
+              <Field label="Follow-up Status">
+                <select className="crm-input" value={form.follow_up_status || ''} onChange={e => set('follow_up_status', e.target.value)}>
+                  <option value="">Select...</option>
+                  {FOLLOW_UP_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </Field>
 
-            <Field label="Lead Quality">
-              <select className="crm-input" value={form.lead_quality || ''} onChange={e => set('lead_quality', e.target.value)}>
-                <option value="">Select...</option>
-                {LEAD_QUALITIES.map(q => <option key={q} value={q}>{q}</option>)}
-              </select>
-            </Field>
+              <Field label="Objection Tag">
+                <select className="crm-input" value={form.objection_tag || ''} onChange={e => set('objection_tag', e.target.value)}>
+                  <option value="">Select...</option>
+                  {OBJECTION_TAGS.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </Field>
 
-            <Field label="Follow-up Status">
-              <select className="crm-input" value={form.follow_up_status || ''} onChange={e => set('follow_up_status', e.target.value)}>
-                <option value="">Select...</option>
-                {FOLLOW_UP_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </Field>
-
-            <Field label="Objection Tag">
-              <select className="crm-input" value={form.objection_tag || ''} onChange={e => set('objection_tag', e.target.value)}>
-                <option value="">Select...</option>
-                {OBJECTION_TAGS.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </Field>
-
-            <Field label="Assigned To">
-              {profiles.length > 0 ? (
+              <Field label="Assigned To">
                 <select className="crm-input" value={form.assigned_user_id || ''} onChange={e => setAssignedUser(e.target.value)}>
                   <option value="">Manual / Unassigned</option>
-                  {profiles.map(profile => (
-                    <option key={profile.id} value={profile.id}>{profile.display_name} - {profile.role}</option>
-                  ))}
+                  {profiles.map(p => <option key={p.id} value={p.id}>{p.display_name}</option>)}
                 </select>
-              ) : (
-                <input className="crm-input" value={form.assigned_to || ''} onChange={e => set('assigned_to', e.target.value)} placeholder="Charchit" />
-              )}
-            </Field>
-
-            <Field label="FBDM">
-              <input className="crm-input" value={form.fbdm || ''} onChange={e => set('fbdm', e.target.value)} placeholder="Kartikey" />
-            </Field>
-
-            <div style={{ gridColumn: '1 / -1' }}>
-              <Field label="Last Remark">
-                <textarea
-                  className="crm-input"
-                  value={form.last_remark || ''}
-                  onChange={e => set('last_remark', e.target.value)}
-                  placeholder="Add notes about this lead..."
-                  rows={3}
-                  style={{ resize: 'vertical' }}
-                />
               </Field>
+
+              <Field label="FBDM">
+                <input className="crm-input" value={form.fbdm || ''} onChange={e => set('fbdm', e.target.value)} placeholder="Kartikey" />
+              </Field>
+
+              <div style={{ gridColumn: '1 / -1' }}>
+                <Field label="Last Remark">
+                  <textarea className="crm-input" style={{ resize: 'vertical', minHeight: '60px' }} value={form.last_remark || ''} onChange={e => set('last_remark', e.target.value)} placeholder="Notes..." />
+                </Field>
+              </div>
+
             </div>
           </div>
 
