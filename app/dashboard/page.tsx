@@ -55,8 +55,8 @@ export default function Dashboard() {
       let query = supabase
         .from('leads')
         .select('*', { count: 'exact' })
-        .order('created_at', { ascending: sortDateAsc })
         .order('s_no', { ascending: sortDateAsc, nullsFirst: false })
+        .order('created_at', { ascending: sortDateAsc })
 
       if (search.trim()) {
         const s = search.trim()
@@ -625,6 +625,7 @@ export default function Dashboard() {
                       <tr style={{ borderBottom: '1px solid var(--border)' }}>
                         {[
                           { label: '', width: '45px' },
+                          { label: 'S.No', width: '55px' },
                           { label: 'Name', width: '180px' },
                           { label: 'Contact', width: '115px' },
                           { label: 'Location', width: '130px' },
@@ -685,13 +686,13 @@ export default function Dashboard() {
                     <tbody>
                       {loading ? (
                         <tr>
-                          <td colSpan={10} style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                          <td colSpan={11} style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)' }}>
                             Loading leads...
                           </td>
                         </tr>
                       ) : leads.length === 0 ? (
                         <tr>
-                          <td colSpan={10} style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                          <td colSpan={11} style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)' }}>
                             No leads found. Add your first lead!
                           </td>
                         </tr>
@@ -720,6 +721,9 @@ export default function Dashboard() {
                               />
                               <LeadStatusDot lead={lead} />
                             </div>
+                          </td>
+                          <td style={{ padding: '8px 10px', width: '55px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                            {lead.s_no || '—'}
                           </td>
                           <td style={{ padding: '8px 10px', width: '180px', overflow: 'hidden' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
