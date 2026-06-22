@@ -85,6 +85,10 @@ export default function Dashboard() {
         .order('s_no', { ascending: sortDateAsc, nullsFirst: false })
         .order('created_at', { ascending: sortDateAsc })
 
+      if (currentProfile && currentProfile.role !== 'admin') {
+        query = query.eq('assigned_user_id', currentProfile.id)
+      }
+
       if (search.trim()) {
         const s = search.trim()
         if (/^\d+$/.test(s)) {
@@ -110,18 +114,34 @@ export default function Dashboard() {
     } finally {
       setLoading(false)
     }
-  }, [search, filterQuality, filterFm, filterStatus, filterMonth, sortDateAsc, supabase])
+  }, [search, filterQuality, filterFm, filterStatus, filterMonth, sortDateAsc, supabase, currentProfile])
 
   const fetchStats = useCallback(async () => {
-    const { count: total } = await supabase.from('leads').select('*', { count: 'exact', head: true })
-    const { count: hot } = await supabase.from('leads').select('*', { count: 'exact', head: true }).eq('lead_quality', '#Hot_Lead')
-    const { count: warm } = await supabase.from('leads').select('*', { count: 'exact', head: true }).eq('lead_quality', '#Warm_Lead')
-    const { count: cold } = await supabase.from('leads').select('*', { count: 'exact', head: true }).eq('lead_quality', '#Cold_Lead')
+    let totalQuery = supabase.from('leads').select('*', { count: 'exact', head: true })
+    let hotQuery = supabase.from('leads').select('*', { count: 'exact', head: true }).eq('lead_quality', '#Hot_Lead')
+    let warmQuery = supabase.from('leads').select('*', { count: 'exact', head: true }).eq('lead_quality', '#Warm_Lead')
+    let coldQuery = supabase.from('leads').select('*', { count: 'exact', head: true }).eq('lead_quality', '#Cold_Lead')
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
-    const { count: today } = await supabase.from('leads').select('*', { count: 'exact', head: true }).gte('created_at', todayStart.toISOString())
+    let todayQuery = supabase.from('leads').select('*', { count: 'exact', head: true }).gte('created_at', todayStart.toISOString())
+    let stagesQuery = supabase.from('leads').select('follow_up_status')
+
+    if (currentProfile && currentProfile.role !== 'admin') {
+      totalQuery = totalQuery.eq('assigned_user_id', currentProfile.id)
+      hotQuery = hotQuery.eq('assigned_user_id', currentProfile.id)
+      warmQuery = warmQuery.eq('assigned_user_id', currentProfile.id)
+      coldQuery = coldQuery.eq('assigned_user_id', currentProfile.id)
+      todayQuery = todayQuery.eq('assigned_user_id', currentProfile.id)
+      stagesQuery = stagesQuery.eq('assigned_user_id', currentProfile.id)
+    }
+
+    const { count: total } = await totalQuery
+    const { count: hot } = await hotQuery
+    const { count: warm } = await warmQuery
+    const { count: cold } = await coldQuery
+    const { count: today } = await todayQuery
     setStats({ total: total || 0, hot: hot || 0, warm: warm || 0, cold: cold || 0, today: today || 0 })
 
-    const { data: stages } = await supabase.from('leads').select('follow_up_status')
+    const { data: stages } = await stagesQuery
     if (stages) {
       const counts: Record<string, number> = {}
       stages.forEach(l => {
@@ -130,7 +150,7 @@ export default function Dashboard() {
       })
       setStageStats(counts)
     }
-  }, [supabase])
+  }, [supabase, currentProfile])
 
   const fetchProfiles = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()

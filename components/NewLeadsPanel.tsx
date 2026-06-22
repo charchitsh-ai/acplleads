@@ -29,12 +29,17 @@ export default function NewLeadsPanel({ currentProfile, onViewLead }: NewLeadsPa
     setLoading(true)
     setError('')
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('leads')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(10)
 
+      if (currentProfile && currentProfile.role !== 'admin') {
+        query = query.eq('assigned_user_id', currentProfile.id)
+      }
+
+      const { data, error } = await query
       if (error) throw error
       setLeads(data || [])
     } catch (err: unknown) {
@@ -42,7 +47,7 @@ export default function NewLeadsPanel({ currentProfile, onViewLead }: NewLeadsPa
     } finally {
       setLoading(false)
     }
-  }, [supabase])
+  }, [supabase, currentProfile])
 
   useEffect(() => {
     fetchNewLeads()

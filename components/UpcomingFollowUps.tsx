@@ -60,8 +60,8 @@ export function UpcomingFollowUps({ currentProfile, onViewLead }: UpcomingFollow
         .order('next_followup_date', { ascending: true })
         .limit(50)
 
-      // If regular user, only show their follow-ups
-      if (currentProfile.role === 'user') {
+      // If regular user (non-admin), only show their follow-ups
+      if (currentProfile.role !== 'admin') {
         query = query.eq('assigned_user_id', currentProfile.id)
       }
 
