@@ -14,6 +14,7 @@ import NewLeadsPanel from '@/components/NewLeadsPanel'
 import SyncSourcesPanel from '@/components/SyncSourcesPanel'
 import { UpcomingFollowUps } from '@/components/UpcomingFollowUps'
 import MailSection from '@/components/MailSection'
+import DailyActivityReport from '@/components/DailyActivityReport'
 import { logUserActivity } from '@/utils/activity-log'
 import { useRouter } from 'next/navigation'
 
@@ -580,6 +581,11 @@ export default function Dashboard() {
                 </div>
               </div>
 
+              {/* Daily Report for Admin */}
+              {currentProfile?.role === 'admin' && (
+                <DailyActivityReport />
+              )}
+
               {/* Activity + New Leads panels */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', alignItems: 'start' }}>
                 <UpcomingFollowUps 
@@ -1021,6 +1027,7 @@ export default function Dashboard() {
         <LeadForm
           lead={editLead}
           profiles={profiles}
+          currentProfile={currentProfile}
           onClose={() => { setShowForm(false); setEditLead(null) }}
           onSaved={handleSaved}
         />
@@ -1043,6 +1050,7 @@ export default function Dashboard() {
       {activityLead && (
         <LeadActivityModal
           lead={activityLead}
+          currentProfile={currentProfile}
           onClose={() => setActivityLead(null)}
           onChanged={() => {
             fetchLeads()

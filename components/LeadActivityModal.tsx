@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Clock, MessageSquare, X } from 'lucide-react'
-import { Lead, LeadActivity } from '@/types/lead'
+import { Lead, LeadActivity, Profile } from '@/types/lead'
 import { createClient } from '@/utils/supabase/client'
 import { logUserActivity } from '@/utils/activity-log'
 
 interface LeadActivityModalProps {
   lead: Lead
+  currentProfile: Profile | null
   onClose: () => void
   onChanged: () => void
 }
@@ -19,7 +20,7 @@ function formatActivityTime(value: string) {
   }).format(new Date(value))
 }
 
-export default function LeadActivityModal({ lead, onClose, onChanged }: LeadActivityModalProps) {
+export default function LeadActivityModal({ lead, currentProfile, onClose, onChanged }: LeadActivityModalProps) {
   const [activities, setActivities] = useState<LeadActivity[]>([])
   const [remark, setRemark] = useState('')
   const [nextFollowup, setNextFollowup] = useState('')
@@ -66,7 +67,7 @@ export default function LeadActivityModal({ lead, onClose, onChanged }: LeadActi
         lead_id: lead.id,
         activity_type: 'remark',
         remark: text,
-        created_by: lead.assigned_to || null,
+        created_by: currentProfile?.display_name || lead.assigned_to || 'System',
         next_followup_date: followupValue
       })
       if (activityError) throw activityError

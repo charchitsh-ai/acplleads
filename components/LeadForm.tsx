@@ -9,6 +9,7 @@ import { logUserActivity } from '@/utils/activity-log'
 interface LeadFormProps {
   lead?: Lead | null
   profiles?: Profile[]
+  currentProfile?: Profile | null
   onClose: () => void
   onSaved: () => void
 }
@@ -97,7 +98,7 @@ function getTagActivities(form: LeadInsert, lead?: Lead | null) {
   })
 }
 
-export default function LeadForm({ lead, profiles = [], onClose, onSaved }: LeadFormProps) {
+export default function LeadForm({ lead, profiles = [], currentProfile, onClose, onSaved }: LeadFormProps) {
   const [form, setForm] = useState<LeadInsert>(EMPTY)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -161,14 +162,14 @@ export default function LeadForm({ lead, profiles = [], onClose, onSaved }: Lead
             lead_id: lead.id,
             activity_type: 'updated',
             remark: text,
-            created_by: form.assigned_to || null,
+            created_by: currentProfile?.display_name || form.assigned_to || 'System',
           })),
           ...(remark && remark !== (lead.last_remark || '').trim()
             ? [{
               lead_id: lead.id,
               activity_type: 'remark',
               remark,
-              created_by: form.assigned_to || null,
+              created_by: currentProfile?.display_name || form.assigned_to || 'System',
             }]
             : []),
         ]
@@ -202,14 +203,14 @@ export default function LeadForm({ lead, profiles = [], onClose, onSaved }: Lead
             lead_id: data.id,
             activity_type: 'created',
             remark: text,
-            created_by: form.assigned_to || null,
+            created_by: currentProfile?.display_name || form.assigned_to || 'System',
           })),
           ...(remark
             ? [{
               lead_id: data.id,
               activity_type: 'remark',
               remark,
-              created_by: form.assigned_to || null,
+              created_by: currentProfile?.display_name || form.assigned_to || 'System',
             }]
             : []),
         ] : []
