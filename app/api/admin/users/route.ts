@@ -119,7 +119,7 @@ export async function DELETE(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { data: currentProfile } = await supabase
-    .from('profiles').select('role').eq('id', user.id).single()
+    .from('profiles').select('role, display_name').eq('id', user.id).single()
 
   if (!currentProfile || currentProfile.role !== 'admin') {
     return NextResponse.json({ error: 'Only admins can delete users' }, { status: 403 })
@@ -131,6 +131,20 @@ export async function DELETE(request: Request) {
   if (id === user.id) return NextResponse.json({ error: 'Cannot delete yourself' }, { status: 400 })
 
   const admin = createAdminClient()
+
+  // Reassign all leads of the deleted user to the admin performing the deletion
+  const { error: updateError } = await admin
+    .from('leads')
+    .update({ 
+      assigned_user_id: user.id, 
+      assigned_to: currentProfile.display_name || 'Admin' 
+    })
+    .eq('assigned_user_id', id)
+
+  if (updateError) {
+    return NextResponse.json({ error: `Failed to reassign leads: ${updateError.message}` }, { status: 400 })
+  }
+
   const { error: authError } = await admin.auth.admin.deleteUser(id)
   if (authError) return NextResponse.json({ error: authError.message }, { status: 400 })
 
